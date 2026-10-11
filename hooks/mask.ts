@@ -13,6 +13,9 @@ import {
   SECRET_RULES,
 } from './rules.ts'
 
+// 일부 노출(계좌·사업자번호·이메일 아이디·사용자 정규식 partial)에서 앞뒤로 보여 줄 글자 수
+const PARTIAL_KEEP = 2
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 // replace 콜백 인자에서 캡처 그룹만 추린다 (offset 숫자 앞까지, 빠진 그룹은 '')
@@ -74,7 +77,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
       ctx.count(label)
       return placeholder(label, norm)
     },
-    keep: config.partialKeep,
+    keep: PARTIAL_KEEP,
     keyed: (key, value, kind) => {
       // <entry key="password"> 뒤의 줄바꿈·들여쓰기 같은 공백뿐인 값은 비밀값이 아니다
       if (!value.trim()) return value
@@ -136,7 +139,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
       s.replace(re, (m: string) => {
         if (!m || PLACEHOLDER_ONLY.test(m)) return m
         const ph = ctx.tag(p.label, m)
-        return p.partial ? `${ph} ${keepEnds(m, config.partialKeep)}` : ph
+        return p.partial ? `${ph} ${keepEnds(m, PARTIAL_KEEP)}` : ph
       }),
     )
   }
