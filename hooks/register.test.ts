@@ -404,3 +404,18 @@ test('홈 경로를 얻지 못하면 파일 없이 범위만 적용한다', asyn
   await $.prompt.submit({ text: 'tel=010-1234-5678' })
   expect(seen).toEqual(['tel=[전화번호#1] 010-••••-5678'])
 })
+
+test('Windows: HOME과 USERPROFILE이 다르면 USERPROFILE의 설정 파일을 읽는다', async ($, on) => {
+  // 엔진은 테스트를 돌리는 OS 기준으로 경로를 풀어 C:\…는 macOS에서 상대 경로가 된다. 순서만 보므로 POSIX 경로로 쓴다
+  const PROFILE = '/profile/tester'
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'USERPROFILE' ? PROFILE : e.name === 'HOME' ? HOME : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: e.path === `${PROFILE}/.claude/privacy-mask.json` }))
+  on('fs.read', () => ({ value: '{"keys":["orderMemo"]}' }))
+  const seen: string[] = []
+  on('prompt.submit', (_$: any, e: any) => {
+    seen.push(e.text)
+    return { text: e.text }
+  })
+  await $.prompt.submit({ text: 'orderMemo=부재시연락' })
+  expect(seen).toEqual(['orderMemo=[orderMemo#1]'])
+})

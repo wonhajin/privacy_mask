@@ -25,8 +25,9 @@ export const register: Register = (on, options) => {
     if (isAllBypass(segments)) return next({ ...e, text: joinSegments(segments) })
 
     // 설정 파일이 있는데 틀린 채 보내면 가릴 줄 안 값이 그대로 나가므로 막는다
-    // $.fs는 값으로 넘길 수 없다 (엔진이 $.noun.event(...) 호출 형태만 허용). Windows는 HOME 대신 USERPROFILE
-    const home = (await $.env.get('HOME')) || (await $.env.get('USERPROFILE'))
+    // $.fs는 값으로 넘길 수 없다 (엔진이 $.noun.event(...) 호출 형태만 허용)
+    // Windows는 HOME이 따로 잡혀 있어도(Git Bash·네트워크 홈) 사용자 폴더가 USERPROFILE이라 먼저 본다. macOS·Linux엔 없다
+    const home = (await $.env.get('USERPROFILE')) || (await $.env.get('HOME'))
     const loaded = await loadUserFile({ exists: p => $.fs.exists(p), read: p => $.fs.read(p) }, userFilePath(home))
     if (!loaded.ok) return { drop: `privacy-mask: ${loaded.reason}` }
 
