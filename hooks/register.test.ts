@@ -1,7 +1,20 @@
 import { expect, mock, test } from 'claude-code/testing'
 
+// 테스트 환경은 env·fs를 직접 답하지 않는다 (훅이 없으면 예외). 홈과 설정 파일을 흉내 낸다. file이 없으면 파일 없음
+const HOME = '/home/tester'
+const FILE = `${HOME}/.claude/privacy-mask.json`
+const fakeHome = (on: any, file?: string) => {
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: file !== undefined && e.path === FILE }))
+  on('fs.read', (_$: any, e: any) => {
+    if (file === undefined || e.path !== FILE) throw new Error('ENOENT')
+    return { value: file }
+  })
+}
+
 // 각 텍스트를 차례로 제출하고, 플러그인을 거쳐 엔진에 닿은 텍스트를 돌려준다
-const submitAll = async ($: any, on: any, texts: string[]) => {
+const submitAll = async ($: any, on: any, texts: string[], file?: string) => {
+  fakeHome(on, file)
   const seen: string[] = []
   on('prompt.submit', (_$: any, e: any) => {
     seen.push(e.text)
@@ -11,7 +24,9 @@ const submitAll = async ($: any, on: any, texts: string[]) => {
   return seen
 }
 
-test('개인정보: 주민번호는 전부, 나머지는 뒷자리만 남긴다', async ($, on) => {
+const ALL = { scope: '전체' }
+
+test('개인정보: 주민번호는 전부, 나머지는 뒷자리만 남긴다', { options: ALL }, async ($, on) => {
   const [seen] = await submitAll($, on, [
     'rrn=900101-1234567 tel=010-1234-5678 mail=hong@test.co.kr card=4111-1111-1111-1111 acct=110-123-456789',
   ])
@@ -88,7 +103,7 @@ test('비밀값: XML 설정 3형식', async ($, on) => {
   )
 })
 
-test('비밀값: Authorization 헤더 · JDBC 접속 문자열 · Jasypt ENC · JWT', async ($, on) => {
+test('비밀값: Authorization 헤더 · JDBC 접속 문자열 · Jasypt ENC · JWT', { options: ALL }, async ($, on) => {
   const [seen] = await submitAll($, on, [
     'Authorization: Bearer abcdefghijklmnop.qrs jdbc:oracle:thin:scott/tiger@10.20.30.40:1521:ORCL pw=ENC(xyz123) jwt eyJhbGciOi.eyJzdWIiOi.sig',
   ])
@@ -97,7 +112,7 @@ test('비밀값: Authorization 헤더 · JDBC 접속 문자열 · Jasypt ENC · 
   )
 })
 
-test('IP는 첫·끝 옥텟만 남기고 localhost는 그대로', async ($, on) => {
+test('IP는 첫·끝 옥텟만 남기고 localhost는 그대로', { options: ALL }, async ($, on) => {
   const [seen] = await submitAll($, on, ['from 192.168.0.1 to 127.0.0.1 at 2026-10-08'])
   expect(seen).toBe('from [IP#1] 192.•••.•••.1 to 127.0.0.1 at 2026-10-08')
 })
@@ -124,8 +139,13 @@ test('Luhn을 통과해도 카드사 대역(BIN)이 아니면 카드로 보지 �
   expect(seen).toBe('job-100-001-1:3100000000000003 / elapsed=34ms card=[카드번호#1] ••••-4444')
 })
 
-test('설정: 끈 항목은 가리지 않는다', { options: { enable_phone: false, enable_secret_key: false } }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['tel=01012345678 db.password=abc123 card=4111-1111-1111-1111'])
+test('설정: 파일의 rules로 끈 항목은 가리지 않는다', async ($, on) => {
+  const [seen] = await submitAll(
+    $,
+    on,
+    ['tel=01012345678 db.password=abc123 card=4111-1111-1111-1111'],
+    '{"rules":{"phone":false,"secret_key":false}}',
+  )
   expect(seen).toBe('tel=01012345678 db.password=abc123 card=[카드번호#1] ••••-1111')
 })
 
@@ -134,16 +154,11 @@ test('설정: 전체 치환 최소 길이를 바꿀 수 있다', { options: { pr
   expect(seen).toBe('pw=[pw#1] url=/x?t=[pw#1]')
 })
 
-test('일부 노출: 이메일 아이디·계좌는 앞뒤 2자, 같은 IP는 같은 번호', async ($, on) => {
+test('일부 노출: 이메일 아이디·계좌는 앞뒤 2자, 같은 IP는 같은 번호', { options: ALL }, async ($, on) => {
   const [seen] = await submitAll($, on, ['gildong.hong@test.co.kr 10.1.2.3 10.1.2.3 10.1.2.4'])
   expect(seen).toBe(
     '[이메일#1] gi•••••.••ng@test.co.kr [IP#1] 10.•••.•••.3 [IP#1] 10.•••.•••.3 [IP#2] 10.•••.•••.4',
   )
-})
-
-test('설정: 일부 노출 글자 수', { options: { partial_keep: 1 } }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['acct=110-123-456789'])
-  expect(seen).toBe('acct=[계좌번호#1] 1••-•••-•••••9')
 })
 
 test('비밀값: 서비스 토큰은 종류별 라벨', async ($, on) => {
@@ -162,8 +177,8 @@ test('운전면허·사업자번호는 계좌보다 먼저 구분하고, 체크�
   )
 })
 
-test('설정: 운전면허를 끄면 계좌 규칙이 잡는다', { options: { enable_driver_license: false } }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['lic=11-23-456789-01'])
+test('설정: 운전면허를 끄면 계좌 규칙이 잡는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['lic=11-23-456789-01'], '{"rules":{"driver_license":false}}')
   expect(seen).toBe('lic=[계좌번호#1] 11-••-••••••-01')
 })
 
@@ -222,13 +237,18 @@ test('개인정보 키: 생년월일·카드 부가정보, 짧은 숫자는 전�
   )
 })
 
-test('사용자 키: 대소문자·_·- 무시, 마지막 . 뒤 이름도 비교', { options: { custom_keys: ['signKey', 'orderMemo'] } }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['sign_key=abcdefgh order.orderMemo=부재시연락 note=부재시연락'])
+test('사용자 키: 대소문자·_·- 무시, 마지막 . 뒤 이름도 비교', async ($, on) => {
+  const [seen] = await submitAll(
+    $,
+    on,
+    ['sign_key=abcdefgh order.orderMemo=부재시연락 note=부재시연락'],
+    '{"keys":["signKey","orderMemo"]}',
+  )
   expect(seen).toBe('sign_key=[sign_key#1] order.orderMemo=[order.orderMemo#1] note=[order.orderMemo#1]')
 })
 
-test('설정: 개인정보 문자 값 최소 길이 · 생년월일 키 끄기', { options: { propagate_min_text: 4, enable_birth_key: false } }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['custName=홍길동 주문자 홍길동 birth=19900101'])
+test('설정: 개인정보 문자 값 최소 길이 · 생년월일 키 끄기', { options: { propagate_min_text: 4 } }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['custName=홍길동 주문자 홍길동 birth=19900101'], '{"rules":{"birth_key":false}}')
   expect(seen).toBe('custName=[custName#1] 주문자 홍길동 birth=19900101')
 })
 
@@ -253,22 +273,19 @@ test('제외 구간: 여러 줄', async ($, on) => {
   expect(seen).toBe('line1\npw=abcdef')
 })
 
-const MISSING = { patterns_file: '/nonexistent/privacy-mask-patterns.json' }
-
-test('설정 오류: 정규식 파일을 못 읽으면 전송을 막는다', { options: MISSING }, async $ => {
+test('설정 오류: 설정 파일이 깨졌으면 전송을 막는다', async ($, on) => {
+  fakeHome(on, '{')
   const result = await $.prompt.submit({ text: 'hello' })
-  expect(result.drop).toBe('privacy-mask: 정규식 파일을 읽을 수 없습니다 (/nonexistent/privacy-mask-patterns.json)')
+  expect(result.drop).toBe('privacy-mask: 설정 파일이 올바른 JSON이 아닙니다')
 })
 
-test('설정 오류여도 전체를 ###로 감싸면 보낸다', { options: MISSING }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['###tel=010-1234-5678###'])
+test('설정 오류여도 전체를 ###로 감싸면 보낸다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['###tel=010-1234-5678###'], '{')
   expect(seen).toBe('tel=010-1234-5678')
 })
 
-test('정규식 파일을 읽어 마스킹한다', { options: { patterns_file: '/x/patterns.json' } }, async ($, on) => {
-  // 테스트 환경에는 fs가 없어 fs.read 훅으로 파일 내용을 대신 준다
-  on('fs.read', () => ({ value: '[{"label":"사번","regex":"EMP\\\\d{6}"}]' }))
-  const [seen] = await submitAll($, on, ['id EMP123456'])
+test('설정 파일의 정규식으로 마스킹한다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['id EMP123456'], '{"patterns":[{"label":"사번","regex":"EMP\\\\d{6}"}]}')
   expect(seen).toBe('id [사번#1]')
 })
 
@@ -290,6 +307,7 @@ const BAND = {
 
 // 엔진 몫(제출 수신·빈 띠·시계)을 먼저 등록한다. 테스트가 $를 부른 뒤에는 훅을 더할 수 없다
 const setupBand = async ($: any, on: any, surface: 'terminal' | 'desktop' = 'terminal') => {
+  fakeHome(on)
   const clock = mock.clock(on)
   on('prompt.submit', (_$: any, e: any) => ({ text: e.text }))
   on('session.start', (_$: any, e: any) => e)
@@ -348,4 +366,41 @@ test('알림: 모듈을 다시 불러오면(session.start) 남아 있던 알림�
   expect(await shown()).toBeDefined()
   await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
   expect(await shown()).toBeUndefined()
+})
+
+test('범위: 기본(표준)은 이메일·IP를 가리지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 tel=010-1234-5678'])
+  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 tel=[전화번호#1] 010-••••-5678')
+})
+
+test('범위: 최소는 전화번호를 두고 주민번호는 가린다', { options: { scope: '최소' } }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['tel=010-1234-5678 rrn=900101-1234567'])
+  expect(seen).toBe('tel=010-1234-5678 rrn=[주민번호#1]')
+})
+
+test('범위: 파일의 rules가 범위보다 우선한다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr'], '{"rules":{"email":true}}')
+  expect(seen).toBe('mail=[이메일#1] ••••@test.co.kr')
+})
+
+test('마스킹 사용을 끄면 설정 파일도 읽지 않고 ###까지 그대로 보낸다', { options: { enabled: false } }, async ($, on) => {
+  // fakeHome 없이: 플러그인이 env·fs를 부르면 예외로 막혀 아래 기대가 깨진다
+  const seen: string[] = []
+  on('prompt.submit', (_$: any, e: any) => {
+    seen.push(e.text)
+    return { text: e.text }
+  })
+  await $.prompt.submit({ text: 'tel=010-1234-5678 ###a###' })
+  expect(seen).toEqual(['tel=010-1234-5678 ###a###'])
+})
+
+test('홈 경로를 얻지 못하면 파일 없이 범위만 적용한다', async ($, on) => {
+  on('env.get', () => ({ value: undefined }))
+  const seen: string[] = []
+  on('prompt.submit', (_$: any, e: any) => {
+    seen.push(e.text)
+    return { text: e.text }
+  })
+  await $.prompt.submit({ text: 'tel=010-1234-5678' })
+  expect(seen).toEqual(['tel=[전화번호#1] 010-••••-5678'])
 })

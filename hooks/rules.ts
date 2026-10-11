@@ -1,4 +1,4 @@
-// 설정 키는 enable_<id>. 규칙을 추가하면 여기와 plugin.json의 userConfig에 함께 넣는다
+// 규칙 id. 범위별 묶음은 SCOPE_RULES, 개별 켜고 끄기는 사용자 설정 파일의 rules. 규칙을 추가하면 SCOPE_RULES에도 넣는다
 export const RULE_IDS = [
   'rrn',
   'phone',
@@ -22,6 +22,33 @@ export const RULE_IDS = [
 ] as const
 
 export type RuleId = (typeof RULE_IDS)[number]
+
+export const SCOPES = ['최소', '표준', '전체'] as const
+export type Scope = (typeof SCOPES)[number]
+
+// 최소: 유출 즉시 피해가 나는 비밀값·결제·신원
+const MINIMAL: readonly RuleId[] = [
+  'private_key',
+  'jwt',
+  'service_token',
+  'jasypt',
+  'auth_header',
+  'connection_string',
+  'cookie',
+  'secret_key',
+  'rrn',
+  'card',
+  'card_extra_key',
+]
+// 표준: + 개인을 특정하는 정보
+const STANDARD: readonly RuleId[] = [...MINIMAL, 'phone', 'driver_license', 'biz_no', 'account', 'name_key', 'birth_key']
+
+// 전체: + 개발 중 오탐이 잦은 것 (커밋 작성자 이메일, 로그의 IP)
+export const SCOPE_RULES: Record<Scope, readonly RuleId[]> = {
+  최소: MINIMAL,
+  표준: STANDARD,
+  전체: [...STANDARD, 'email', 'ip'],
+}
 
 export type Ctx = {
   // 같은 프롬프트 안에서 같은 norm → 같은 번호. norm은 호출부가 정한다 (전화는 숫자만, 이메일은 소문자 등)
