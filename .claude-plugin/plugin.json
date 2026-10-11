@@ -1,6 +1,6 @@
 {
   "name": "privacy-mask",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "프롬프트 전송 전 로컬에서 개인정보·비밀값 마스킹",
   "author": { "name": "wonhajin" },
   "homepage": "https://github.com/wonhajin/privacy_mask",
