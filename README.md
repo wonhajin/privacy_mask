@@ -18,7 +18,7 @@ tel=010-1234-5678 db.password=abc123
 `prompt.submit`은 다음처럼 동작합니다.
 
 - 프롬프트 텍스트에서 민감정보를 찾아 자리표시자로 바꾼 뒤 전송을 이어갑니다.
-- `patterns_file`을 지정한 경우에만 그 파일을 읽습니다. 그 외에는 파일을 읽지 않습니다.
+- `~/.claude/privacy-mask.json`이 있으면 프롬프트를 보낼 때마다 그 파일만 읽습니다. 그 외에는 파일을 읽지 않습니다.
 - 설정 파일 오류나 내부 오류가 나면 원문이 나가지 않도록 전송을 막고 이유를 표시합니다.
 - 가린 항목이 있으면 항목별 개수만 입력창 위 알림으로 5초 동안 보여 줍니다.
 - 네트워크 요청을 하지 않고, 프롬프트 내용을 저장하지 않습니다.
@@ -37,21 +37,21 @@ tel=010-1234-5678 db.password=abc123
 - 전화: 끝 4자리. `[전화번호#1] 010-••••-5678` (유선은 지역번호 + 끝 4자리)
 - IP: 첫·끝 옥텟. `[IP#1] 10.•••.•••.5`
 - 카드: 끝 4자리. `[카드번호#1] ••••-1111`
-- 그 외는 구분자(`-` `.` 공백)를 남기고 앞뒤 `partial_keep`자(기본 2)만 보입니다. 글자 수가 `2 × partial_keep` 이하면 전부 `•`입니다.
+- 그 외는 구분자(`-` `.` 공백)를 남기고 앞뒤 2자만 보입니다. 글자 수가 4 이하면 전부 `•`입니다.
   - 계좌: `[계좌번호#1] 11•-•••-••••89`
   - 사업자번호: `[사업자번호#1] 12•-••-•••91`
   - 이메일: 아이디에만 적용. `[이메일#1] gi•••••.••ng@test.co.kr`
 
 ## 마스킹 대상
 
-괄호 안은 `/config`에서 켜고 끄는 설정 이름(`enable_<id>`)입니다. 기본값은 모두 켜짐입니다.
+괄호 안은 설정 파일 `rules`에 쓰는 규칙 이름과, 그 규칙이 처음 포함되는 마스킹 범위입니다. 범위는 넓을수록 앞 범위를 포함합니다(최소 ⊂ 표준 ⊂ 전체).
 
-- **개인정보 형식**: 주민·외국인등록번호(`rrn`) · 운전면허번호(`driver_license`) · 휴대폰·유선 전화번호(`phone`) · 이메일(`email`) · 카드번호(`card`) · 사업자등록번호(`biz_no`, 체크섬 검증) · 계좌번호(`account`) · IPv4(`ip`, 127.0.0.1·0.0.0.0 제외)
+- **개인정보 형식**: 주민·외국인등록번호(`rrn`, 최소) · 운전면허번호(`driver_license`, 표준) · 휴대폰·유선 전화번호(`phone`, 표준) · 이메일(`email`, 전체) · 카드번호(`card`, 최소) · 사업자등록번호(`biz_no`, 표준, 체크섬 검증) · 계좌번호(`account`, 표준) · IPv4(`ip`, 전체, 127.0.0.1·0.0.0.0 제외)
 - **개인정보 키**: 키 이름으로 찾은 값을 `[키이름#n]`으로 가립니다.
-  - 이름(`name_key`): `custName` · `memberNm` · `성명` 등. `fileName`·`userName` 같은 이름은 제외
-  - 생년월일(`birth_key`): `birth` · `birthDate` · `dob` · `생년월일`
-  - 카드 부가정보(`card_extra_key`): `cvc` · `cvv` · `cardExpiry`
-- **비밀값**
+  - 이름(`name_key`, 표준): `custName` · `memberNm` · `성명` 등. `fileName`·`userName` 같은 이름은 제외
+  - 생년월일(`birth_key`, 표준): `birth` · `birthDate` · `dob` · `생년월일`
+  - 카드 부가정보(`card_extra_key`, 최소): `cvc` · `cvv` · `cardExpiry`
+- **비밀값**: 모두 최소 범위부터 포함됩니다.
   - PEM 개인키(`private_key`) · JWT(`jwt`) · Jasypt `ENC(...)`(`jasypt`)
   - 서비스 토큰(`service_token`): AWS · GitHub · GitLab · Anthropic · OpenAI · Slack · Google · Stripe · npm, Slack·Discord 웹훅 URL
   - Authorization·Bearer 헤더(`auth_header`) · Cookie·Set-Cookie 헤더(`cookie`)
@@ -60,7 +60,7 @@ tel=010-1234-5678 db.password=abc123
 
 키로 찾은 값은 키 없이 다른 곳(URL·다른 로그 줄)에 다시 나와도 같은 자리표시자로 바꿉니다.
 
-주소는 대상이 아닙니다. 필요하면 주소 키 이름을 `custom_keys`에 넣으세요.
+주소는 대상이 아닙니다. 필요하면 주소 키 이름을 설정 파일 `keys`에 넣으세요.
 
 ## 마스킹 제외
 
@@ -79,46 +79,44 @@ tel=010-1234-5678 db.password=abc123
 
 | 설정 | 기본 | 뜻 |
 |---|---|---|
-| `enable_<id>` | 켜짐 | 위 마스킹 대상별 켜기/끄기 |
+| `enabled` 마스킹 사용 | 켜짐 | 끄면 아무것도 바꾸지 않고 보냅니다 (`###`도 그대로) |
+| `scope` 마스킹 범위 | 표준 | `최소`: 비밀값·주민번호·카드 / `표준`: + 전화·운전면허·사업자번호·계좌·이름·생년월일 / `전체`: + 이메일·IP |
 | `propagate_min` | 6 | 키로 찾은 비밀값·숫자 값을 다른 곳에서도 가리는 최소 길이 |
 | `propagate_min_text` | 2 | 키로 찾은 개인정보 문자 값(이름 등)을 다른 곳에서도 가리는 최소 길이 |
-| `partial_keep` | 2 | 일부 노출에서 앞뒤로 보여 줄 글자 수 |
-| `patterns_file` | 없음 | 사용자 정규식 파일 경로 |
 
-`custom_keys`(추가로 가릴 키 이름)는 목록이라 `/config`에 보이지 않습니다. `settings.json`에 직접 넣습니다. 대소문자·`_`·`-`는 무시하고, `order.orderMemo`처럼 `.`이 있으면 마지막 이름도 비교합니다.
+## 사용자 설정 파일
 
-```json
-{ "pluginConfigs": { "privacy-mask": { "options": { "custom_keys": ["custName", "orderMemo"] } } } }
-```
-
-`--plugin-dir`로 띄운 경우 키가 `privacy-mask@inline`일 수 있습니다.
-
-## 사용자 정규식 파일
-
-`patterns_file`에 JSON 파일 경로(절대 경로 권장)를 넣습니다. 다른 규칙이 모두 끝난 뒤 마지막에 적용됩니다.
+규칙별 조정·추가 키·사용자 정규식은 `~/.claude/privacy-mask.json`에 씁니다. 파일이 없으면 `/config` 설정만 적용합니다. 플러그인은 이 파일을 만들지 않습니다. 모든 항목은 선택입니다.
 
 ```json
-[
-  { "label": "여권번호", "regex": "[A-Z]\\d{8}", "partial": true },
-  { "label": "차량번호", "regex": "\\d{2,3}[가-힣]\\d{4}" },
-  { "label": "MAC", "regex": "(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}" }
-]
+{
+  "rules": { "ip": false, "email": true },
+  "keys": ["custName", "orderMemo"],
+  "patterns": [
+    { "label": "여권번호", "regex": "[A-Z]\\d{8}", "partial": true },
+    { "label": "차량번호", "regex": "\\d{2,3}[가-힣]\\d{4}" },
+    { "label": "MAC", "regex": "(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}" }
+  ]
+}
 ```
 
-- `label`: 자리표시자 라벨. `[` `]` `#` 줄바꿈은 쓸 수 없습니다.
-- `regex`: JavaScript 정규식. JSON 안이라 `\`는 `\\`로 씁니다.
-- `partial`: `true`면 앞뒤 `partial_keep`자를 보여 줍니다. 생략하면 전체 가림입니다.
+- `rules`: 규칙 이름(`마스킹 대상`의 괄호 안) → `true`/`false`. 마스킹 범위에서 시작해 `true`는 켜고 `false`는 끕니다.
+- `keys`: 추가로 가릴 키 이름. 값은 `[키이름#n]`으로 가립니다. 대소문자·`_`·`-`는 무시하고, `order.orderMemo`처럼 `.`이 있으면 마지막 이름도 비교합니다.
+- `patterns`: 다른 규칙이 모두 끝난 뒤 마지막에 적용됩니다.
+  - `label`: 자리표시자 라벨. `[` `]` `#` 줄바꿈은 쓸 수 없습니다.
+  - `regex`: JavaScript 정규식. JSON 안이라 `\`는 `\\`로 씁니다.
+  - `partial`: `true`면 앞뒤 2자를 보여 줍니다. 생략하면 전체 가림입니다.
 
 파일은 프롬프트마다 다시 읽으므로 고친 내용이 바로 반영됩니다.
 
 ## 주의
 
-- **설정 오류면 전송을 막습니다.** 정규식 파일을 읽을 수 없거나 형식·문법이 틀리면 원문이 나가지 않도록 차단하고 이유를 알립니다.
+- **설정 오류면 전송을 막습니다.** 설정 파일이 있는데 읽을 수 없거나 형식·정규식 문법이 틀리면, 모르는 항목·규칙 이름이 있으면 원문이 나가지 않도록 차단하고 이유를 알립니다.
 - 매우 느린 정규식(`(a+)+$` 류)은 전송을 멈추게 할 수 있습니다.
-- `userName`은 계정 식별용이라 기본 제외입니다. 실명이 들어가면 `custom_keys`에 추가하세요.
+- `userName`은 계정 식별용이라 기본 제외입니다. 실명이 들어가면 설정 파일 `keys`에 추가하세요.
 - 공백이 낀 값은 다른 곳에서 전체 치환하지 않습니다.
 - 키 값이 `null`·`true`·`false` 같은 리터럴이면 가리지 않습니다.
-- `phone`을 꺼도 `010-1234-5678`처럼 하이픈이 있는 전화번호는 계좌번호 형식에 맞아 `[계좌번호#n]`으로 가려질 수 있습니다.
+- `rules`에서 `phone`을 꺼도 `010-1234-5678`처럼 하이픈이 있는 전화번호는 계좌번호 형식에 맞아 `[계좌번호#n]`으로 가려질 수 있습니다.
 - 따옴표 없는 `Cookie:` 헤더는 줄 끝까지 가립니다.
 - 직접 입력한 프롬프트만 마스킹합니다. Claude가 도구로 읽은 파일·명령 출력은 아직 대상이 아닙니다.
 
@@ -140,8 +138,9 @@ claude --plugin-dir /path/to/privacy_mask
 ## 개발
 
 ```bash
-claude plugin validate .   # 매니페스트·모듈 검사
-claude plugin test .       # hooks/*.test.ts 실행
+claude plugin validate .claude-plugin/plugin.json   # 매니페스트·모듈 검사
+claude plugin validate .                            # 마켓플레이스 매니페스트 검사
+claude plugin test .                                # hooks/*.test.ts 실행
 ```
 
 ## 라이선스

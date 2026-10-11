@@ -24,6 +24,6 @@
 
 - [ ] 코드가 정상적으로 동작함
 - [ ] 기존 기능에 영향을 주지 않음
-- [ ] 린트/포맷팅 적용 완료 (`claude plugin validate .`)
+- [ ] 린트/포맷팅 적용 완료 (`claude plugin validate .claude-plugin/plugin.json`·`claude plugin validate .`)
 - [ ] 관련 테스트 작성 또는 기존 테스트 통과 확인 (`claude plugin test .`)
 - [ ] 리뷰어가 이해할 수 있도록 충분한 설명이 포함됨

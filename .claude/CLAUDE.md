@@ -10,5 +10,6 @@ Claude Code mod(함수 훅 플러그인). 진입점은 `hooks/register.ts`의 `r
 
 ## 명령
 
-- `claude plugin validate .` — 매니페스트·훅 검사
+- `claude plugin validate .claude-plugin/plugin.json` — 매니페스트·훅·`$.state` 계약 검사. `validate .`는 marketplace.json만 보고 통과하므로 이걸로는 플러그인이 검사되지 않는다
+- `claude plugin validate .` — 마켓플레이스 매니페스트 검사
 - `claude plugin test .` — 테스트
