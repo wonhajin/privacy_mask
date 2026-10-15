@@ -329,6 +329,15 @@ test('주민번호: 구분자 없는 13자리가 1900~1919년생이면 epoch ms�
   expect(seen).toBe('ts=1801231567890 rrn=[주민번호#1] kid=[주민번호#2]')
 })
 
+test('비밀값 키: pass·token이 다른 단어의 일부면 비밀값 키가 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, [
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=pw9x accessToken=t0k',
+  ])
+  expect(seen).toBe(
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=[bypass_password#1] accessToken=[accessToken#1]',
+  )
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

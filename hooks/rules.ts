@@ -148,9 +148,12 @@ const LICENSE_REGIONS = '서울|부산|경기|강원|충북|충남|전북|전남
 const SECRET_KEY =
   /pass(word|wd)?|pwd|pw$|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|auth(?!or)|jsessionid|session[_-]?id|client[_-]?id|비밀번호|비번/
 
+// pass·token을 품은 다른 단어 (테스트 결과·토큰 개수·설정 플래그). 키에서 지운 뒤 판정해 bypass_password는 그대로 잡는다
+const NOT_SECRET_WORDS = /passed|bypass|compass|passeng|passthrough|tokens|tokeniz|token_?(?:count|type|limit|len)/g
+
 export const isSecretKey = (key: string) => {
   const k = key.toLowerCase()
-  return !/user(name)?$/.test(k) && SECRET_KEY.test(k)
+  return !/user(name)?$/.test(k) && SECRET_KEY.test(k.replace(NOT_SECRET_WORDS, ' '))
 }
 
 export type KeyKind = 'secret' | 'pii'
