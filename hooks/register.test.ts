@@ -318,6 +318,12 @@ test('키 값이 null·true 같은 리터럴이면 가리지 않는다', async (
   expect(seen).toBe('{"custName": null, "memo": null, "password": true}')
 })
 
+test('키 값: 값이 비어 줄이 바뀌면 다음 줄을 값으로 보지 않는다 (YAML 중첩)', async ($, on) => {
+  const text = 'auth:\n  enabled: true\npassword:\n  # 주석\n  value: x\ntoken =\nnext'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

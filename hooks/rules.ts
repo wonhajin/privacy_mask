@@ -313,7 +313,8 @@ export const SECRET_RULES: Rule[] = [
   {
     id: null,
     // key=value · key: value · "key": "value"
-    re: /(["']?)([A-Za-z0-9_.\-가-힣]+)\1(\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
+    // 구분자 앞뒤 공백은 줄을 넘지 않는다: 값이 빈 YAML 키(auth:) 다음 줄의 키(enabled:)를 값으로 잡지 않게
+    re: /(["']?)([A-Za-z0-9_.\-가-힣]+)\1([ \t]*[:=][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
     apply: (ctx, _m, g) => {
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
