@@ -1,5 +1,6 @@
 import type { PluginOptions } from 'claude-code'
-import { normKey, RULE_IDS, SCOPE_RULES, SCOPES, type RuleId, type Scope } from './rules.ts'
+import { normKey } from './keys.ts'
+import { RULE_IDS, SCOPE_RULES, SCOPES, type RuleId, type Scope } from './rules.ts'
 
 export type UserPattern = { label: string; source: string; partial: boolean }
 

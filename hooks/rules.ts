@@ -1,3 +1,5 @@
+import type { KeyKind } from './keys.ts'
+
 // 규칙 id. 범위별 묶음은 SCOPE_RULES, 개별 켜고 끄기는 사용자 설정 파일의 rules. 규칙을 추가하면 SCOPE_RULES에도 넣는다
 export const RULE_IDS = [
   'rrn',
@@ -143,70 +145,6 @@ export const isBizNo = (d: string) => {
 
 // 2014년 이전 면허증의 지역명 표기
 const LICENSE_REGIONS = '서울|부산|경기|강원|충북|충남|전북|전남|경북|경남|제주|대구|인천|광주|대전|울산'
-
-// username류는 계정 식별용이라 제외 (사용자 ID로 로그 추적이 필요함)
-const SECRET_KEY =
-  /pass(word|wd)?|pwd|pw$|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|auth(?!or)|jsessionid|session[_-]?id|client[_-]?id|비밀번호|비번/
-
-// pass·token을 품은 다른 단어 (테스트 결과·토큰 개수·설정 플래그). 키에서 지운 뒤 판정해 bypass_password는 그대로 잡는다
-const NOT_SECRET_WORDS = /passed|bypass|compass|passeng|passthrough|tokens|tokeniz|token_?(?:count|type|limit|len)/g
-
-export const isSecretKey = (key: string) => {
-  const k = key.toLowerCase()
-  return !/user(name)?$/.test(k) && SECRET_KEY.test(k.replace(NOT_SECRET_WORDS, ' '))
-}
-
-export type KeyKind = 'secret' | 'pii'
-
-// 마지막 . 뒤 이름을 _ - 공백·camelCase 경계로 나눈다: order.custName → [cust, name]
-export const keyTokens = (key: string) =>
-  (key.split('.').pop() ?? '')
-    .split(/[_\-\s]+|(?<=[a-z0-9])(?=[A-Z])/)
-    .filter(Boolean)
-    .map(t => t.toLowerCase())
-
-const NAME_OWNERS = new Set(['cust', 'customer', 'member', 'mbr', 'buyer', 'receiver', 'recipient', 'holder', 'owner', 'emp', 'employee', 'real', 'full'])
-const BIRTH = new Set(['birth', 'birthday', 'birthdate', 'birthdt', 'birthymd', 'brthdy', 'dob'])
-
-// custname·membernm처럼 소유자와 name이 붙어 한 토큰인 경우
-const OWNER_NAME = new RegExp(`^(${[...NAME_OWNERS].join('|')})(name|nm)$`)
-
-export const PII_KEY_IDS = ['name_key', 'birth_key', 'card_extra_key'] as const
-export type PiiKeyId = (typeof PII_KEY_IDS)[number]
-
-// "name"은 기술 용어(fileName·hostName)에도 쓰여서 앞에 붙는 말로 거른다. 놓친 키는 사용자 키로 보완한다
-export const PII_KEY_MATCHERS: Record<PiiKeyId, (key: string) => boolean> = {
-  name_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    const prev = t.at(-2) ?? ''
-    return (
-      ((last === 'name' || last === 'nm') && NAME_OWNERS.has(prev)) ||
-      OWNER_NAME.test(last) ||
-      /^(성명|이름|고객명)$/.test(last)
-    )
-  },
-  birth_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    const prev = t.at(-2) ?? ''
-    return BIRTH.has(last) || (prev === 'birth' && /^(date|dt|day|ymd)$/.test(last)) || /생년월일$/.test(last)
-  },
-  card_extra_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    return /^(cvc|cvv)2?$/.test(last) || /card(exp|expiry|expdate|expiration)$/.test(t.slice(-3).join(''))
-  },
-}
-
-export const normKey = (key: string) => key.toLowerCase().replace(/[_-]/g, '')
-
-// 사용자 키는 키 전체 또는 마지막 . 뒤 이름과 비교한다 (custom은 normKey로 정규화된 값)
-export const isCustomKey = (custom: readonly string[], key: string) => {
-  const full = normKey(key)
-  const last = full.split('.').pop() ?? full
-  return custom.some(c => c === full || c === last)
-}
 
 // 코드로 보이는 값: ::·==의 뒷부분, 함수 호출(getToken(), 타입 표기(password: string).
 // 실제 비밀값일 가능성이 거의 없는 꼴만 거른다. password: hashedPassword 같은 식별자나 키와 같은 값(password=password)은

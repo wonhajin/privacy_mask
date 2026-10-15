@@ -1,17 +1,6 @@
 import { DEFAULT_CONFIG, type MaskConfig } from './config.ts'
-import {
-  type Ctx,
-  isCustomKey,
-  isSecretKey,
-  keepEnds,
-  type KeyKind,
-  PII_KEY_IDS,
-  PII_KEY_MATCHERS,
-  PII_RULES,
-  type Rule,
-  SECRET,
-  SECRET_RULES,
-} from './rules.ts'
+import { keyKindOf } from './keys.ts'
+import { type Ctx, keepEnds, PII_RULES, type Rule, SECRET, SECRET_RULES } from './rules.ts'
 
 // 일부 노출(계좌·사업자번호·이메일 아이디·사용자 정규식 partial)에서 앞뒤로 보여 줄 글자 수
 const PARTIAL_KEEP = 2
@@ -94,11 +83,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
       if (value.length >= min && !/\s/.test(value)) keyedValues.set(value, { ph, label })
       return ph
     },
-    keyKind: (key): KeyKind | null => {
-      if (config.enabled.has('secret_key') && isSecretKey(key)) return 'secret'
-      if (isCustomKey(config.customKeys, key)) return 'pii'
-      return PII_KEY_IDS.some(id => config.enabled.has(id) && PII_KEY_MATCHERS[id](key)) ? 'pii' : null
-    },
+    keyKind: key => keyKindOf(config, key),
   }
 
   const segments = splitBypass(text)
