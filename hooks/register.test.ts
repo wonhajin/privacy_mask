@@ -118,12 +118,20 @@ test('IP는 첫·끝 옥텟만 남기고 localhost는 그대로', { options: ALL
 })
 
 test('MAC은 첫·끝 바이트만 남기고 구분자·대소문자가 달라도 같은 번호', { options: ALL }, async ($, on) => {
-  const [seen] = await submitAll($, on, ['eth0 3C:22:FB:1A:2B:9E wlan 3c-22-fb-1a-2b-9e br 10-20-30-40-50-60'])
-  expect(seen).toBe('eth0 [MAC#1] 3C:••:••:••:••:9E wlan [MAC#1] 3c-••-••-••-••-9e br [MAC#2] 10-••-••-••-••-60')
+  const [seen] = await submitAll($, on, ['eth0 02:1A:2B:3C:4D:5E wlan 02-1a-2b-3c-4d-5e br 02-00-00-00-00-0a'])
+  expect(seen).toBe('eth0 [MAC#1] 02:••:••:••:••:5E wlan [MAC#1] 02-••-••-••-••-5e br [MAC#2] 02-••-••-••-••-0a')
 })
 
-test('MAC 아닌 것: 브로드캐스트·0 주소·IPv6·시각·구분자 섞임은 그대로', { options: ALL }, async ($, on) => {
-  const text = 'ff:ff:ff:ff:ff:ff 00:00:00:00:00:00 fe80::1 aa:bb:cc:dd:ee:ff:00:11 12:34:56 aa:bb-cc:dd:ee:ff'
+test('MAC: 키 이름 바로 뒤의 콜론, 끝에 붙은 콜론·하이픈 단어도 가린다', { options: ALL }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['mac:02:1a:2b:3c:4d:5e addr 02:1a:2b:3c:4d:5f: up 02:1a:2b:3c:4d:60-based'])
+  expect(seen).toBe(
+    'mac:[MAC#1] 02:••:••:••:••:5e addr [MAC#2] 02:••:••:••:••:5f: up [MAC#3] 02:••:••:••:••:60-based',
+  )
+})
+
+test('MAC 아닌 것: 브로드캐스트·0 주소·IPv6·시각·구분자 섞임·숫자만 있는 날짜는 그대로', { options: ALL }, async ($, on) => {
+  const text =
+    'ff:ff:ff:ff:ff:ff FF-FF-FF-FF-FF-FF 00:00:00:00:00:00 fe80::1 aa:bb:cc:dd:ee:ff:00:11 fe80::aa:bb:cc:dd:ee:ff aa:bb:cc:dd:ee:ff::1 12:34:56 aa:bb-cc:dd:ee:ff 26-10-08-12-34-56'
   const [seen] = await submitAll($, on, [text])
   expect(seen).toBe(text)
 })
@@ -380,8 +388,8 @@ test('알림: 모듈을 다시 불러오면(session.start) 남아 있던 알림�
 })
 
 test('범위: 기본(표준)은 이메일·IP·MAC을 가리지 않는다', async ($, on) => {
-  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 3c:22:fb:1a:2b:9e tel=010-1234-5678'])
-  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 3c:22:fb:1a:2b:9e tel=[전화번호#1] 010-••••-5678')
+  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 02:1a:2b:3c:4d:5e tel=010-1234-5678'])
+  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 02:1a:2b:3c:4d:5e tel=[전화번호#1] 010-••••-5678')
 })
 
 test('범위: 최소는 전화번호를 두고 주민번호는 가린다', { options: { scope: '최소' } }, async ($, on) => {
