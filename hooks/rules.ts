@@ -8,6 +8,7 @@ export const RULE_IDS = [
   'biz_no',
   'account',
   'ip',
+  'mac',
   'name_key',
   'birth_key',
   'card_extra_key',
@@ -43,11 +44,11 @@ const MINIMAL: readonly RuleId[] = [
 // 표준: + 개인을 특정하는 정보
 const STANDARD: readonly RuleId[] = [...MINIMAL, 'phone', 'driver_license', 'biz_no', 'account', 'name_key', 'birth_key']
 
-// 전체: + 개발 중 오탐이 잦은 것 (커밋 작성자 이메일, 로그의 IP)
+// 전체: + 개발 중 오탐이 잦은 것 (커밋 작성자 이메일, 로그의 IP·MAC)
 export const SCOPE_RULES: Record<Scope, readonly RuleId[]> = {
   최소: MINIMAL,
   표준: STANDARD,
-  전체: [...STANDARD, 'email', 'ip'],
+  전체: [...STANDARD, 'email', 'ip', 'mac'],
 }
 
 export type Ctx = {
@@ -211,7 +212,7 @@ const maskValue = (ctx: Ctx, key: string, v: string, kind: KeyKind) => {
   return ctx.keyed(key, v, kind)
 }
 
-// 순서가 중요하다: 비밀값 → (키로 찾은 값 전체 치환) → 개인정보 → IP. 앞 단계가 남긴 [..] 자리표시자는 뒤 규칙이 건드리지 않는다
+// 순서가 중요하다: 비밀값 → (키로 찾은 값 전체 치환) → 개인정보 → IP·MAC. 앞 단계가 남긴 [..] 자리표시자는 뒤 규칙이 건드리지 않는다
 export const SECRET_RULES: Rule[] = [
   // ---- 비밀값: 형식만으로 잡히는 것 ----
   {
@@ -397,6 +398,19 @@ export const PII_RULES: Rule[] = [
     apply: (ctx, m, g) => {
       if (g.some(o => Number(o) > 255) || m === '127.0.0.1' || m === '0.0.0.0') return null
       return `${ctx.tag('IP', m)} ${g[0]}.${MASK.repeat(3)}.${MASK.repeat(3)}.${g[3]}`
+    },
+  },
+  // ---- MAC: IP처럼 첫·끝 바이트만. 구분자는 한 종류로 6바이트 ----
+  {
+    id: 'mac',
+    // 앞뒤에 hex 묶음이 구분자로 더 이어지거나 ::가 붙으면 IPv6·EUI-64로 보고 제외.
+    // mac:… 처럼 단어 뒤 콜론, 끝의 콜론·-based 같은 단어는 묶음이 아니므로 잡는다
+    re: /(?<!\w)(?<!(?<![0-9a-z])[0-9a-f]{1,4}[:-])(?<!::)([0-9a-f]{2})([:-])(?:[0-9a-f]{2}\2){4}([0-9a-f]{2})(?!\w|[:-][0-9a-f]{1,4}(?![0-9a-z])|::)/gi,
+    apply: (ctx, m, g) => {
+      const norm = m.toLowerCase().replace(/-/g, ':')
+      // 숫자만 있으면 yy-mm-dd-hh-mm-ss 같은 날짜로 본다 (0 주소 포함). 숫자만으로 된 실제 MAC은 놓친다
+      if (norm === 'ff:ff:ff:ff:ff:ff' || !/[a-f]/.test(norm)) return null
+      return `${ctx.tag('MAC', norm)} ${g[0]}${`${g[1]}${MASK.repeat(2)}`.repeat(4)}${g[1]}${g[2]}`
     },
   },
 ]
