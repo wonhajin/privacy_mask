@@ -324,6 +324,11 @@ test('키 값: 값이 비어 줄이 바뀌면 다음 줄을 값으로 보지 않
   expect(seen).toBe(text)
 })
 
+test('주민번호: 구분자 없는 13자리가 1900~1919년생이면 epoch ms로 보고, 2000년대생이면 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['ts=1801231567890 rrn=180123-1567890 kid=1801234567890'])
+  expect(seen).toBe('ts=1801231567890 rrn=[주민번호#1] kid=[주민번호#2]')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

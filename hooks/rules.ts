@@ -342,12 +342,15 @@ export const PII_RULES: Rule[] = [
   },
   {
     id: 'rrn',
-    // 13자리 epoch ms 오탐은 앞 6자리 월·일 검사로 거른다
-    re: /(?<!\d)\d{2}(\d{2})(\d{2})[- ]?[1-8]\d{6}(?!\d)/g,
+    // 13자리 epoch ms 오탐은 앞 6자리 월·일 검사로 거른다. 17·18로 시작하는 ms(2023-11~2024-04, 2027-01~06)는
+    // 월·일을 통과하므로, 구분자가 없고 1900~1919년생(106세 이상)이면 번호가 아닌 것으로 본다.
+    // 같은 구간의 2000년대생 꼴(성별 3·4·7·8)은 남는다: 체크섬은 2020년 개편 뒤 번호에 쓸 수 있는지 확인되지 않았다
+    re: /(?<!\d)(\d{2})(\d{2})(\d{2})([- ]?)([1-8])\d{6}(?!\d)/g,
     apply: (ctx, m, g) => {
-      const month = Number(g[0])
-      const day = Number(g[1])
-      return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? ctx.tag('주민번호', digitsOf(m)) : null
+      const [yy, mm, dd, , gender] = g.map(Number)
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
+      if (g[3] === '' && yy < 20 && [1, 2, 5, 6].includes(gender)) return null
+      return ctx.tag('주민번호', digitsOf(m))
     },
   },
   {
