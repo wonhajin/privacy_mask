@@ -153,14 +153,14 @@ const TYPE_NAMES = /^(string|number|boolean|bool|any|unknown|object|str|int|floa
 
 const isCodeValue = (v: string) => /^[:=]/.test(v) || /^[\w.$]+\($/.test(v) || TYPE_NAMES.test(v)
 
-// 따옴표는 남기고 안쪽만 가린다
-const maskValue = (ctx: Ctx, key: string, v: string, kind: KeyKind) => {
+// 따옴표는 남기고 안쪽만 바꾼다. 빈 따옴표("")는 null(원문 유지)
+const replaceInQuotes = (v: string, fn: (inner: string) => string) => {
   const q = v[0]
   if ((q === '"' || q === "'") && v.length >= 2 && v.endsWith(q)) {
     const inner = v.slice(1, -1)
-    return inner ? `${q}${ctx.keyed(key, inner, kind)}${q}` : null
+    return inner ? `${q}${fn(inner)}${q}` : null
   }
-  return ctx.keyed(key, v, kind)
+  return fn(v)
 }
 
 // 순서가 중요하다: 비밀값 → (키로 찾은 값 전체 치환) → 개인정보 → IP·MAC. 앞 단계가 남긴 [..] 자리표시자는 뒤 규칙이 건드리지 않는다
@@ -226,11 +226,8 @@ export const SECRET_RULES: Rule[] = [
     re: /(["']?\b(?:set-)?cookie["']?\s*:\s*)("[^"\n]*"|'[^'\n]*'|[^\r\n]+)/gi,
     apply: (ctx, _m, g) => {
       const [head, v] = g
-      const q = v[0]
-      if ((q === '"' || q === "'") && v.length >= 2 && v.endsWith(q)) {
-        return v.length > 2 ? `${head}${q}${ctx.tag('쿠키', v.slice(1, -1))}${q}` : null
-      }
-      return head + ctx.tag('쿠키', v)
+      const masked = replaceInQuotes(v, inner => ctx.tag('쿠키', inner))
+      return masked === null ? null : head + masked
     },
   },
   // ---- 키 이름으로 잡는 것 (비밀값·개인정보) ----
@@ -271,7 +268,7 @@ export const SECRET_RULES: Rule[] = [
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
       if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v) || isCodeValue(v)) return null
-      const masked = maskValue(ctx, key, v, kind)
+      const masked = replaceInQuotes(v, inner => ctx.keyed(key, inner, kind))
       return masked === null ? null : q + key + q + sep + masked
     },
   },
