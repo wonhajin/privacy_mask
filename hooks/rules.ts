@@ -75,7 +75,7 @@ export type Rule = {
 
 export const SECRET = '비밀값'
 
-export const digitsOf = (s: string) => s.replace(/\D/g, '')
+const digitsOf = (s: string) => s.replace(/\D/g, '')
 
 const SEP = /[-. ]/
 
@@ -109,7 +109,7 @@ const SERVICE_LABELS: [RegExp, string][] = [
   [/^npm_/, 'npm토큰'],
 ]
 
-export const serviceLabel = (token: string) => SERVICE_LABELS.find(([re]) => re.test(token))?.[1] ?? '토큰'
+const serviceLabel = (token: string) => SERVICE_LABELS.find(([re]) => re.test(token))?.[1] ?? '토큰'
 
 const luhn = (digits: string) => {
   let sum = 0
@@ -135,7 +135,7 @@ const isCardBin = (digits: string) => {
 // 사업자등록번호 검증: 앞 9자리 × 1,3,7,1,3,7,1,3,5 + ⌊9번째 × 5 / 10⌋, (10 − 합 mod 10) mod 10 = 끝자리
 const BIZ_WEIGHTS = [1, 3, 7, 1, 3, 7, 1, 3, 5]
 
-export const isBizNo = (d: string) => {
+const isBizNo = (d: string) => {
   if (d.length !== 10) return false
   let sum = 0
   for (let i = 0; i < 9; i++) sum += Number(d[i]) * (BIZ_WEIGHTS[i] ?? 0)

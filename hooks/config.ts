@@ -24,7 +24,7 @@ export const DEFAULT_CONFIG: MaskConfig = {
 }
 
 // 음수·소수·누락은 기본값으로
-export const intOption = (v: unknown, fallback: number) =>
+const intOption = (v: unknown, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback
 
 export type Options = { enabled: boolean; scope: Scope; propagateMin: number; propagateMinText: number }
