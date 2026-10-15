@@ -117,6 +117,17 @@ test('IP는 첫·끝 옥텟만 남기고 localhost는 그대로', { options: ALL
   expect(seen).toBe('from [IP#1] 192.•••.•••.1 to 127.0.0.1 at 2026-10-08')
 })
 
+test('MAC은 첫·끝 바이트만 남기고 구분자·대소문자가 달라도 같은 번호', { options: ALL }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['eth0 3C:22:FB:1A:2B:9E wlan 3c-22-fb-1a-2b-9e br 10-20-30-40-50-60'])
+  expect(seen).toBe('eth0 [MAC#1] 3C:••:••:••:••:9E wlan [MAC#1] 3c-••-••-••-••-9e br [MAC#2] 10-••-••-••-••-60')
+})
+
+test('MAC 아닌 것: 브로드캐스트·0 주소·IPv6·시각·구분자 섞임은 그대로', { options: ALL }, async ($, on) => {
+  const text = 'ff:ff:ff:ff:ff:ff 00:00:00:00:00:00 fe80::1 aa:bb:cc:dd:ee:ff:00:11 12:34:56 aa:bb-cc:dd:ee:ff'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 test('로그의 날짜·시각·epoch ms·일반 숫자·코드는 그대로 둔다', async ($, on) => {
   const text = '2026-10-08 12:34:56.789 ts=1760000000000 seq=12345 ERR000123 ORA-01403 id=1234567812345678'
   const [seen] = await submitAll($, on, [text])
@@ -368,9 +379,9 @@ test('알림: 모듈을 다시 불러오면(session.start) 남아 있던 알림�
   expect(await shown()).toBeUndefined()
 })
 
-test('범위: 기본(표준)은 이메일·IP를 가리지 않는다', async ($, on) => {
-  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 tel=010-1234-5678'])
-  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 tel=[전화번호#1] 010-••••-5678')
+test('범위: 기본(표준)은 이메일·IP·MAC을 가리지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 3c:22:fb:1a:2b:9e tel=010-1234-5678'])
+  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 3c:22:fb:1a:2b:9e tel=[전화번호#1] 010-••••-5678')
 })
 
 test('범위: 최소는 전화번호를 두고 주민번호는 가린다', { options: { scope: '최소' } }, async ($, on) => {
