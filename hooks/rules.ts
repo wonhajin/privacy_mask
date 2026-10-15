@@ -297,8 +297,8 @@ export const SECRET_RULES: Rule[] = [
   },
   {
     id: null,
-    // <entry key="password">...</entry>
-    re: /(key\s*=\s*"([^"]+)"[^>]*>)([^<]+)(<)/g,
+    // <entry key="password">...</entry>. 자기닫힘 태그(<add key=… />)는 값이 없으니 뒤 텍스트를 잡지 않는다
+    re: /(key\s*=\s*"([^"]+)"[^>]*(?<!\/)>)([^<]+)(<)/g,
     apply: (ctx, _m, g) => {
       const kind = ctx.keyKind(g[1])
       return kind ? g[0] + ctx.keyed(g[1], g[2], kind) + g[3] : null

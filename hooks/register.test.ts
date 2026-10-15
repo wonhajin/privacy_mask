@@ -338,6 +338,11 @@ test('비밀값 키: pass·token이 다른 단어의 일부면 비밀값 키가 
   )
 })
 
+test('비밀값: 자기닫힘 태그 <add key="…" value="…"/> 뒤 텍스트는 값이 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['<add key="ApiToken" value="abc123"/> some text here<br>'])
+  expect(seen).toBe('<add key="ApiToken" value="[ApiToken#1]"/> some text here<br>')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
