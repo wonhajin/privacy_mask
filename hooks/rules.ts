@@ -324,7 +324,8 @@ export const SECRET_RULES: Rule[] = [
     id: null,
     // key=value · key: value · "key": "value"
     // 구분자 앞뒤 공백은 줄을 넘지 않는다: 값이 빈 YAML 키(auth:) 다음 줄의 키(enabled:)를 값으로 잡지 않게
-    re: /(["']?)([A-Za-z0-9_.\-가-힣]+)\1([ \t]*[:=][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
+    // 키는 글자 묶음의 처음에서만 시작한다. 묶음 중간에서 다시 시작해도 결과는 같고, 긴 base64에서 시간이 제곱으로 는다
+    re: /(?<![A-Za-z0-9_.\-가-힣])(["']?)([A-Za-z0-9_.\-가-힣]+)\1([ \t]*[:=][ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
     apply: (ctx, _m, g) => {
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
@@ -339,7 +340,8 @@ export const PII_RULES: Rule[] = [
   // ---- 개인정보 ----
   {
     id: 'email',
-    re: /([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
+    // 아이디는 글자 묶음의 처음에서만 시작한다 (key=value 규칙과 같은 이유)
+    re: /(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
     apply: (ctx, m, g) => `${ctx.tag('이메일', m.toLowerCase())} ${keepEnds(g[0], ctx.keep)}@${g[1]}`,
   },
   {
