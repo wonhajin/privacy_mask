@@ -205,6 +205,13 @@ export const isCustomKey = (custom: readonly string[], key: string) => {
   return custom.some(c => c === full || c === last)
 }
 
+// 코드로 보이는 값: ::·==의 뒷부분, 함수 호출(getToken(), 타입 표기(password: string).
+// 실제 비밀값일 가능성이 거의 없는 꼴만 거른다. password: hashedPassword 같은 식별자나 키와 같은 값(password=password)은
+// 비밀값과 구분할 수 없어 그대로 가린다
+const TYPE_NAMES = /^(string|number|boolean|bool|any|unknown|object|str|int|float|double|long|char|bytes)$/i
+
+const isCodeValue = (v: string) => /^[:=]/.test(v) || /^[\w.$]+\($/.test(v) || TYPE_NAMES.test(v)
+
 // 따옴표는 남기고 안쪽만 가린다
 const maskValue = (ctx: Ctx, key: string, v: string, kind: KeyKind) => {
   const q = v[0]
@@ -321,7 +328,7 @@ export const SECRET_RULES: Rule[] = [
     apply: (ctx, _m, g) => {
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
-      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v)) return null
+      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v) || isCodeValue(v)) return null
       const masked = maskValue(ctx, key, v, kind)
       return masked === null ? null : q + key + q + sep + masked
     },

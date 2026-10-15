@@ -348,6 +348,13 @@ test('비밀값: 접속 문자열 비밀번호의 / 도 가리고, 포트 뒤 �
   expect(seen).toBe('postgres://user:[접속비밀번호#1]@host:5432/db http://localhost:3000/users/hong@test.com')
 })
 
+test('비밀값 키: 코드의 타입 표기·함수 호출·::·==는 가리지 않는다', async ($, on) => {
+  const text =
+    'interface User { password: string; name: string }\nconst token = getToken();\nAuthError::InvalidToken\nif (token == null) return'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
