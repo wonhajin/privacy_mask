@@ -168,6 +168,9 @@ export const keyTokens = (key: string) =>
 const NAME_OWNERS = new Set(['cust', 'customer', 'member', 'mbr', 'buyer', 'receiver', 'recipient', 'holder', 'owner', 'emp', 'employee', 'real', 'full'])
 const BIRTH = new Set(['birth', 'birthday', 'birthdate', 'birthdt', 'birthymd', 'brthdy', 'dob'])
 
+// custname·membernm처럼 소유자와 name이 붙어 한 토큰인 경우
+const OWNER_NAME = new RegExp(`^(${[...NAME_OWNERS].join('|')})(name|nm)$`)
+
 export const PII_KEY_IDS = ['name_key', 'birth_key', 'card_extra_key'] as const
 export type PiiKeyId = (typeof PII_KEY_IDS)[number]
 
@@ -179,7 +182,7 @@ export const PII_KEY_MATCHERS: Record<PiiKeyId, (key: string) => boolean> = {
     const prev = t.at(-2) ?? ''
     return (
       ((last === 'name' || last === 'nm') && NAME_OWNERS.has(prev)) ||
-      new RegExp(`^(${[...NAME_OWNERS].join('|')})(name|nm)$`).test(last) ||
+      OWNER_NAME.test(last) ||
       /^(성명|이름|고객명)$/.test(last)
     )
   },
