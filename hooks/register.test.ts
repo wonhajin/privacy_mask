@@ -343,6 +343,11 @@ test('비밀값: 자기닫힘 태그 <add key="…" value="…"/> 뒤 텍스트�
   expect(seen).toBe('<add key="ApiToken" value="[ApiToken#1]"/> some text here<br>')
 })
 
+test('비밀값: 접속 문자열 비밀번호의 / 도 가리고, 포트 뒤 경로의 @는 비밀번호로 보지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['postgres://user:ab/cd12@host:5432/db http://localhost:3000/users/hong@test.com'])
+  expect(seen).toBe('postgres://user:[접속비밀번호#1]@host:5432/db http://localhost:3000/users/hong@test.com')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

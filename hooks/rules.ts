@@ -262,8 +262,8 @@ export const SECRET_RULES: Rule[] = [
   },
   {
     id: 'connection_string',
-    // scheme://user:password@host
-    re: /(:\/\/[^/\s:@]+:)([^@\s/]+)(@)/g,
+    // scheme://user:password@host. 비밀번호에 /가 그대로 들어가도 잡되, 숫자 뒤 /는 host:port/경로로 본다
+    re: /(:\/\/[^/\s:@]+:)(?!\d+\/)([^@\s]+)(@)/g,
     apply: (ctx, _m, g) => g[0] + ctx.tag('접속비밀번호', g[1]) + g[2],
   },
   {
