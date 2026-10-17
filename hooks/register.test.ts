@@ -387,6 +387,12 @@ test('비밀값 키: 인자가 있는 함수 호출도 값으로 보지 않는�
   expect(seen).toBe(text)
 })
 
+test('비밀값 키: kebab-case 토큰 개수 키(CLI 플래그)도 비밀값 키가 아니다', async ($, on) => {
+  const text = '--max-tokens=4096 token-count=5 tokens-used=9'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
