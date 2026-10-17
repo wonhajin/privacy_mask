@@ -210,8 +210,9 @@ export const SECRET_RULES: Rule[] = [
   },
   {
     id: 'connection_string',
-    // scheme://user:password@host. 비밀번호에 /가 그대로 들어가도 잡되, 숫자 뒤 /는 host:port/경로로 본다
-    re: /(:\/\/[^/\s:@]+:)(?!\d+\/)([^@\s]+)(@)/g,
+    // scheme://user:password@host. 비밀번호에 /가 그대로 들어가도 잡되, 숫자 뒤 /는 host:port/경로로 본다.
+    // 사용자명에 [ ]가 없다: IPv6 호스트([::1]:8080/경로@…)를 user:password로 보지 않게
+    re: /(:\/\/[^/\s:@[\]]+:)(?!\d+\/)([^@\s]+)(@)/g,
     apply: (ctx, _m, g) => g[0] + ctx.tag('접속비밀번호', g[1]) + g[2],
   },
   {

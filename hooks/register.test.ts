@@ -370,6 +370,12 @@ test('비밀값 키: := 대입(Makefile·Go)은 공백·따옴표와 상관없�
   expect(seen).toBe('DB_PASSWORD:=[DB_PASSWORD#1]\nAPI_TOKEN := [API_TOKEN#1]\npassword:="[password#1]"')
 })
 
+test('비밀값: IPv6 주소 URL의 경로 @는 접속 비밀번호가 아니다', async ($, on) => {
+  const text = 'http://[::1]:8080/users/hong@test.com'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
