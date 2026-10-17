@@ -1,6 +1,6 @@
 {
   "name": "privacy-mask",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "프롬프트 전송 전 로컬에서 개인정보·비밀값 마스킹",
   "author": { "name": "wonhajin" },
   "homepage": "https://github.com/wonhajin/privacy_mask",
@@ -13,7 +13,7 @@
   "types": "./types/index.d.ts",
   "userConfig": {
     "enabled": { "type": "boolean", "title": "마스킹 사용", "description": "끄면 프롬프트를 그대로 보낸다", "default": true },
-    "scope": { "type": "string", "title": "마스킹 범위", "description": "최소: 비밀값·주민번호·카드 / 표준: + 전화·계좌·이름·생년월일 등 / 전체: + 이메일·IP. 규칙별 조정·추가 키·정규식은 ~/.claude/privacy-mask.json", "options": ["최소", "표준", "전체"], "default": "표준" },
+    "scope": { "type": "string", "title": "마스킹 범위", "description": "최소: 비밀값·주민번호·카드 / 표준: + 전화·계좌·이름·생년월일 등 / 전체: + 이메일·IP·MAC. 규칙별 조정·추가 키·정규식은 ~/.claude/privacy-mask.json", "options": ["최소", "표준", "전체"], "default": "표준" },
     "propagate_min": { "type": "number", "title": "전체 치환 최소 길이 (숫자·비밀값)", "description": "키로 찾은 값이 이 길이 이상이면 프롬프트의 다른 곳에서도 가린다", "default": 6, "min": 1 },
     "propagate_min_text": { "type": "number", "title": "전체 치환 최소 길이 (개인정보 문자 값)", "description": "이름 등 개인정보 키로 찾은 문자 값이 이 길이 이상이면 다른 곳에서도 가린다", "default": 2, "min": 1 }
   }

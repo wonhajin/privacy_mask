@@ -117,6 +117,25 @@ test('IP는 첫·끝 옥텟만 남기고 localhost는 그대로', { options: ALL
   expect(seen).toBe('from [IP#1] 192.•••.•••.1 to 127.0.0.1 at 2026-10-08')
 })
 
+test('MAC은 첫·끝 바이트만 남기고 구분자·대소문자가 달라도 같은 번호', { options: ALL }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['eth0 02:1A:2B:3C:4D:5E wlan 02-1a-2b-3c-4d-5e br 02-00-00-00-00-0a'])
+  expect(seen).toBe('eth0 [MAC#1] 02:••:••:••:••:5E wlan [MAC#1] 02-••-••-••-••-5e br [MAC#2] 02-••-••-••-••-0a')
+})
+
+test('MAC: 키 이름 바로 뒤의 콜론, 끝에 붙은 콜론·하이픈 단어도 가린다', { options: ALL }, async ($, on) => {
+  const [seen] = await submitAll($, on, ['mac:02:1a:2b:3c:4d:5e addr 02:1a:2b:3c:4d:5f: up 02:1a:2b:3c:4d:60-based'])
+  expect(seen).toBe(
+    'mac:[MAC#1] 02:••:••:••:••:5e addr [MAC#2] 02:••:••:••:••:5f: up [MAC#3] 02:••:••:••:••:60-based',
+  )
+})
+
+test('MAC 아닌 것: 브로드캐스트·0 주소·IPv6·시각·구분자 섞임·숫자만 있는 날짜는 그대로', { options: ALL }, async ($, on) => {
+  const text =
+    'ff:ff:ff:ff:ff:ff FF-FF-FF-FF-FF-FF 00:00:00:00:00:00 fe80::1 aa:bb:cc:dd:ee:ff:00:11 fe80::aa:bb:cc:dd:ee:ff aa:bb:cc:dd:ee:ff::1 12:34:56 aa:bb-cc:dd:ee:ff 26-10-08-12-34-56'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 test('로그의 날짜·시각·epoch ms·일반 숫자·코드는 그대로 둔다', async ($, on) => {
   const text = '2026-10-08 12:34:56.789 ts=1760000000000 seq=12345 ERR000123 ORA-01403 id=1234567812345678'
   const [seen] = await submitAll($, on, [text])
@@ -299,6 +318,81 @@ test('키 값이 null·true 같은 리터럴이면 가리지 않는다', async (
   expect(seen).toBe('{"custName": null, "memo": null, "password": true}')
 })
 
+test('키 값: 값이 비어 줄이 바뀌면 다음 줄을 값으로 보지 않는다 (YAML 중첩)', async ($, on) => {
+  const text = 'auth:\n  enabled: true\npassword:\n  # 주석\n  value: x\ntoken =\nnext'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('주민번호: 구분자 없는 13자리가 1900~1919년생이면 epoch ms로 보고, 2000년대생이면 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['ts=1801231567890 rrn=180123-1567890 kid=1801234567890'])
+  expect(seen).toBe('ts=1801231567890 rrn=[주민번호#1] kid=[주민번호#2]')
+})
+
+test('비밀값 키: pass·token이 다른 단어의 일부면 비밀값 키가 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, [
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=pw9x accessToken=t0k',
+  ])
+  expect(seen).toBe(
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=[bypass_password#1] accessToken=[accessToken#1]',
+  )
+})
+
+test('비밀값: 자기닫힘 태그 <add key="…" value="…"/> 뒤 텍스트는 값이 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['<add key="ApiToken" value="abc123"/> some text here<br>'])
+  expect(seen).toBe('<add key="ApiToken" value="[ApiToken#1]"/> some text here<br>')
+})
+
+test('비밀값: 접속 문자열 비밀번호의 / 도 가리고, 포트 뒤 경로의 @는 비밀번호로 보지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['postgres://user:ab/cd12@host:5432/db http://localhost:3000/users/hong@test.com'])
+  expect(seen).toBe('postgres://user:[접속비밀번호#1]@host:5432/db http://localhost:3000/users/hong@test.com')
+})
+
+test('비밀값 키: 코드의 타입 표기·함수 호출·::·==는 가리지 않는다', async ($, on) => {
+  const text =
+    'interface User { password: string; name: string }\nconst token = getToken();\nAuthError::InvalidToken\nif (token == null) return'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('키 값: 구분자 뒤 NBSP·전각 공백(복사한 문서·전각 입력)도 공백으로 본다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['password:\u00a0hunter2xyz custName:\u3000홍길동'])
+  expect(seen).toBe('password:\u00a0[password#1] custName:\u3000[custName#1]')
+})
+
+test('비밀값 키: 복수형 토큰 키는 비밀값, 토큰 개수 키는 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['api_tokens=Zq8vLr2m GITHUB_TOKENS=Hs3xKp4T num_tokens=12 tokens_used=40'])
+  expect(seen).toBe('api_tokens=[api_tokens#1] GITHUB_TOKENS=[GITHUB_TOKENS#1] num_tokens=12 tokens_used=40')
+})
+
+test('비밀값 키: := 대입(Makefile·Go)은 공백·따옴표와 상관없이 값을 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['DB_PASSWORD:=hunter2xyz\nAPI_TOKEN := abc123xyz\npassword:="pw9876543"'])
+  expect(seen).toBe('DB_PASSWORD:=[DB_PASSWORD#1]\nAPI_TOKEN := [API_TOKEN#1]\npassword:="[password#1]"')
+})
+
+test('비밀값: IPv6 주소 URL의 경로 @는 접속 비밀번호가 아니다', async ($, on) => {
+  const text = 'http://[::1]:8080/users/hong@test.com'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('개인정보 키: 이름이 타입 이름과 같아도 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['custName: Long'])
+  expect(seen).toBe('custName: [custName#1]')
+})
+
+test('비밀값 키: 인자가 있는 함수 호출도 값으로 보지 않는다', async ($, on) => {
+  const text = 'const token = getToken(req);\nconst secret = vault.read(path, opts)'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('비밀값 키: kebab-case 토큰 개수 키(CLI 플래그)도 비밀값 키가 아니다', async ($, on) => {
+  const text = '--max-tokens=4096 token-count=5 tokens-used=9'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
@@ -368,9 +462,9 @@ test('알림: 모듈을 다시 불러오면(session.start) 남아 있던 알림�
   expect(await shown()).toBeUndefined()
 })
 
-test('범위: 기본(표준)은 이메일·IP를 가리지 않는다', async ($, on) => {
-  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 tel=010-1234-5678'])
-  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 tel=[전화번호#1] 010-••••-5678')
+test('범위: 기본(표준)은 이메일·IP·MAC을 가리지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['mail=hong@test.co.kr from 192.168.0.1 02:1a:2b:3c:4d:5e tel=010-1234-5678'])
+  expect(seen).toBe('mail=hong@test.co.kr from 192.168.0.1 02:1a:2b:3c:4d:5e tel=[전화번호#1] 010-••••-5678')
 })
 
 test('범위: 최소는 전화번호를 두고 주민번호는 가린다', { options: { scope: '최소' } }, async ($, on) => {
