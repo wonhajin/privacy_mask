@@ -151,7 +151,9 @@ const LICENSE_REGIONS = '서울|부산|경기|강원|충북|충남|전북|전남
 // 비밀값과 구분할 수 없어 그대로 가린다
 const TYPE_NAMES = /^(string|number|boolean|bool|any|unknown|object|str|int|float|double|long|char|bytes)$/i
 
-const isCodeValue = (v: string) => /^[:=]/.test(v) || /^[\w.$]+\($/.test(v) || TYPE_NAMES.test(v)
+// 타입 이름은 비밀값 키에만 본다: 개인정보 값은 Long 같은 실제 성일 수 있다
+const isCodeValue = (v: string, kind: KeyKind) =>
+  /^[:=]/.test(v) || /^[\w.$]+\($/.test(v) || (kind === 'secret' && TYPE_NAMES.test(v))
 
 // 따옴표는 남기고 안쪽만 바꾼다. 빈 따옴표("")는 null(원문 유지)
 const replaceInQuotes = (v: string, fn: (inner: string) => string) => {
@@ -269,7 +271,7 @@ export const SECRET_RULES: Rule[] = [
     apply: (ctx, _m, g) => {
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
-      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v) || isCodeValue(v)) return null
+      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v) || isCodeValue(v, kind)) return null
       const masked = replaceInQuotes(v, inner => ctx.keyed(key, inner, kind))
       return masked === null ? null : q + key + q + sep + masked
     },

@@ -376,6 +376,11 @@ test('비밀값: IPv6 주소 URL의 경로 @는 접속 비밀번호가 아니다
   expect(seen).toBe(text)
 })
 
+test('개인정보 키: 이름이 타입 이름과 같아도 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['custName: Long'])
+  expect(seen).toBe('custName: [custName#1]')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
