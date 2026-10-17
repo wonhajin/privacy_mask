@@ -318,6 +318,81 @@ test('키 값이 null·true 같은 리터럴이면 가리지 않는다', async (
   expect(seen).toBe('{"custName": null, "memo": null, "password": true}')
 })
 
+test('키 값: 값이 비어 줄이 바뀌면 다음 줄을 값으로 보지 않는다 (YAML 중첩)', async ($, on) => {
+  const text = 'auth:\n  enabled: true\npassword:\n  # 주석\n  value: x\ntoken =\nnext'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('주민번호: 구분자 없는 13자리가 1900~1919년생이면 epoch ms로 보고, 2000년대생이면 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['ts=1801231567890 rrn=180123-1567890 kid=1801234567890'])
+  expect(seen).toBe('ts=1801231567890 rrn=[주민번호#1] kid=[주민번호#2]')
+})
+
+test('비밀값 키: pass·token이 다른 단어의 일부면 비밀값 키가 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, [
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=pw9x accessToken=t0k',
+  ])
+  expect(seen).toBe(
+    'max_tokens: 4096 test_passed: 15 bypassCache=on compass=n tokenizer=bpe token_count=12 bypass_password=[bypass_password#1] accessToken=[accessToken#1]',
+  )
+})
+
+test('비밀값: 자기닫힘 태그 <add key="…" value="…"/> 뒤 텍스트는 값이 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['<add key="ApiToken" value="abc123"/> some text here<br>'])
+  expect(seen).toBe('<add key="ApiToken" value="[ApiToken#1]"/> some text here<br>')
+})
+
+test('비밀값: 접속 문자열 비밀번호의 / 도 가리고, 포트 뒤 경로의 @는 비밀번호로 보지 않는다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['postgres://user:ab/cd12@host:5432/db http://localhost:3000/users/hong@test.com'])
+  expect(seen).toBe('postgres://user:[접속비밀번호#1]@host:5432/db http://localhost:3000/users/hong@test.com')
+})
+
+test('비밀값 키: 코드의 타입 표기·함수 호출·::·==는 가리지 않는다', async ($, on) => {
+  const text =
+    'interface User { password: string; name: string }\nconst token = getToken();\nAuthError::InvalidToken\nif (token == null) return'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('키 값: 구분자 뒤 NBSP·전각 공백(복사한 문서·전각 입력)도 공백으로 본다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['password:\u00a0hunter2xyz custName:\u3000홍길동'])
+  expect(seen).toBe('password:\u00a0[password#1] custName:\u3000[custName#1]')
+})
+
+test('비밀값 키: 복수형 토큰 키는 비밀값, 토큰 개수 키는 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['api_tokens=Zq8vLr2m GITHUB_TOKENS=Hs3xKp4T num_tokens=12 tokens_used=40'])
+  expect(seen).toBe('api_tokens=[api_tokens#1] GITHUB_TOKENS=[GITHUB_TOKENS#1] num_tokens=12 tokens_used=40')
+})
+
+test('비밀값 키: := 대입(Makefile·Go)은 공백·따옴표와 상관없이 값을 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['DB_PASSWORD:=hunter2xyz\nAPI_TOKEN := abc123xyz\npassword:="pw9876543"'])
+  expect(seen).toBe('DB_PASSWORD:=[DB_PASSWORD#1]\nAPI_TOKEN := [API_TOKEN#1]\npassword:="[password#1]"')
+})
+
+test('비밀값: IPv6 주소 URL의 경로 @는 접속 비밀번호가 아니다', async ($, on) => {
+  const text = 'http://[::1]:8080/users/hong@test.com'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('개인정보 키: 이름이 타입 이름과 같아도 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['custName: Long'])
+  expect(seen).toBe('custName: [custName#1]')
+})
+
+test('비밀값 키: 인자가 있는 함수 호출도 값으로 보지 않는다', async ($, on) => {
+  const text = 'const token = getToken(req);\nconst secret = vault.read(path, opts)'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
+test('비밀값 키: kebab-case 토큰 개수 키(CLI 플래그)도 비밀값 키가 아니다', async ($, on) => {
+  const text = '--max-tokens=4096 token-count=5 tokens-used=9'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

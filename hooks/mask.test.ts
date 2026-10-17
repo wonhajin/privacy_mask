@@ -39,3 +39,12 @@ test('사용자 정규식: 제외 구간은 건드리지 않는다', () => {
     'EMP123456 [사번#1]',
   )
 })
+
+test('maskText: 공백 없는 긴 문자열(base64·숫자열)도 길이에 비례한 시간에 끝난다', () => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  const b64 = Array.from({ length: 40000 }, (_, i) => chars[(i * 7919) % 62]).join('')
+  const start = performance.now()
+  maskText(`${b64} ${'1'.repeat(40000)}`)
+  // 위치마다 다시 훑으면 수십 초가 걸린다. 여유를 크게 둔다
+  expect(performance.now() - start).toBeLessThan(1000)
+})

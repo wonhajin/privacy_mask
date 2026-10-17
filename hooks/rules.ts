@@ -1,3 +1,5 @@
+import type { KeyKind } from './keys.ts'
+
 // 규칙 id. 범위별 묶음은 SCOPE_RULES, 개별 켜고 끄기는 사용자 설정 파일의 rules. 규칙을 추가하면 SCOPE_RULES에도 넣는다
 export const RULE_IDS = [
   'rrn',
@@ -73,7 +75,7 @@ export type Rule = {
 
 export const SECRET = '비밀값'
 
-export const digitsOf = (s: string) => s.replace(/\D/g, '')
+const digitsOf = (s: string) => s.replace(/\D/g, '')
 
 const SEP = /[-. ]/
 
@@ -107,7 +109,7 @@ const SERVICE_LABELS: [RegExp, string][] = [
   [/^npm_/, 'npm토큰'],
 ]
 
-export const serviceLabel = (token: string) => SERVICE_LABELS.find(([re]) => re.test(token))?.[1] ?? '토큰'
+const serviceLabel = (token: string) => SERVICE_LABELS.find(([re]) => re.test(token))?.[1] ?? '토큰'
 
 const luhn = (digits: string) => {
   let sum = 0
@@ -133,7 +135,7 @@ const isCardBin = (digits: string) => {
 // 사업자등록번호 검증: 앞 9자리 × 1,3,7,1,3,7,1,3,5 + ⌊9번째 × 5 / 10⌋, (10 − 합 mod 10) mod 10 = 끝자리
 const BIZ_WEIGHTS = [1, 3, 7, 1, 3, 7, 1, 3, 5]
 
-export const isBizNo = (d: string) => {
+const isBizNo = (d: string) => {
   if (d.length !== 10) return false
   let sum = 0
   for (let i = 0; i < 9; i++) sum += Number(d[i]) * (BIZ_WEIGHTS[i] ?? 0)
@@ -144,72 +146,23 @@ export const isBizNo = (d: string) => {
 // 2014년 이전 면허증의 지역명 표기
 const LICENSE_REGIONS = '서울|부산|경기|강원|충북|충남|전북|전남|경북|경남|제주|대구|인천|광주|대전|울산'
 
-// username류는 계정 식별용이라 제외 (사용자 ID로 로그 추적이 필요함)
-const SECRET_KEY =
-  /pass(word|wd)?|pwd|pw$|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|auth(?!or)|jsessionid|session[_-]?id|client[_-]?id|비밀번호|비번/
+// 코드로 보이는 값: ::·==의 뒷부분, 함수 호출(getToken(·getToken(req — 값은 ) 앞에서 끊긴다), 타입 표기(password: string).
+// 실제 비밀값일 가능성이 거의 없는 꼴만 거른다. password: hashedPassword 같은 식별자나 키와 같은 값(password=password)은
+// 비밀값과 구분할 수 없어 그대로 가린다
+const TYPE_NAMES = /^(string|number|boolean|bool|any|unknown|object|str|int|float|double|long|char|bytes)$/i
 
-export const isSecretKey = (key: string) => {
-  const k = key.toLowerCase()
-  return !/user(name)?$/.test(k) && SECRET_KEY.test(k)
-}
+// 타입 이름은 비밀값 키에만 본다: 개인정보 값은 Long 같은 실제 성일 수 있다
+const isCodeValue = (v: string, kind: KeyKind) =>
+  /^[:=]/.test(v) || /^[\w.$]+\(/.test(v) || (kind === 'secret' && TYPE_NAMES.test(v))
 
-export type KeyKind = 'secret' | 'pii'
-
-// 마지막 . 뒤 이름을 _ - 공백·camelCase 경계로 나눈다: order.custName → [cust, name]
-export const keyTokens = (key: string) =>
-  (key.split('.').pop() ?? '')
-    .split(/[_\-\s]+|(?<=[a-z0-9])(?=[A-Z])/)
-    .filter(Boolean)
-    .map(t => t.toLowerCase())
-
-const NAME_OWNERS = new Set(['cust', 'customer', 'member', 'mbr', 'buyer', 'receiver', 'recipient', 'holder', 'owner', 'emp', 'employee', 'real', 'full'])
-const BIRTH = new Set(['birth', 'birthday', 'birthdate', 'birthdt', 'birthymd', 'brthdy', 'dob'])
-
-export const PII_KEY_IDS = ['name_key', 'birth_key', 'card_extra_key'] as const
-export type PiiKeyId = (typeof PII_KEY_IDS)[number]
-
-// "name"은 기술 용어(fileName·hostName)에도 쓰여서 앞에 붙는 말로 거른다. 놓친 키는 사용자 키로 보완한다
-export const PII_KEY_MATCHERS: Record<PiiKeyId, (key: string) => boolean> = {
-  name_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    const prev = t.at(-2) ?? ''
-    return (
-      ((last === 'name' || last === 'nm') && NAME_OWNERS.has(prev)) ||
-      new RegExp(`^(${[...NAME_OWNERS].join('|')})(name|nm)$`).test(last) ||
-      /^(성명|이름|고객명)$/.test(last)
-    )
-  },
-  birth_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    const prev = t.at(-2) ?? ''
-    return BIRTH.has(last) || (prev === 'birth' && /^(date|dt|day|ymd)$/.test(last)) || /생년월일$/.test(last)
-  },
-  card_extra_key: key => {
-    const t = keyTokens(key)
-    const last = t.at(-1) ?? ''
-    return /^(cvc|cvv)2?$/.test(last) || /card(exp|expiry|expdate|expiration)$/.test(t.slice(-3).join(''))
-  },
-}
-
-export const normKey = (key: string) => key.toLowerCase().replace(/[_-]/g, '')
-
-// 사용자 키는 키 전체 또는 마지막 . 뒤 이름과 비교한다 (custom은 normKey로 정규화된 값)
-export const isCustomKey = (custom: readonly string[], key: string) => {
-  const full = normKey(key)
-  const last = full.split('.').pop() ?? full
-  return custom.some(c => c === full || c === last)
-}
-
-// 따옴표는 남기고 안쪽만 가린다
-const maskValue = (ctx: Ctx, key: string, v: string, kind: KeyKind) => {
+// 따옴표는 남기고 안쪽만 바꾼다. 빈 따옴표("")는 null(원문 유지)
+const replaceInQuotes = (v: string, fn: (inner: string) => string) => {
   const q = v[0]
   if ((q === '"' || q === "'") && v.length >= 2 && v.endsWith(q)) {
     const inner = v.slice(1, -1)
-    return inner ? `${q}${ctx.keyed(key, inner, kind)}${q}` : null
+    return inner ? `${q}${fn(inner)}${q}` : null
   }
-  return ctx.keyed(key, v, kind)
+  return fn(v)
 }
 
 // 순서가 중요하다: 비밀값 → (키로 찾은 값 전체 치환) → 개인정보 → IP·MAC. 앞 단계가 남긴 [..] 자리표시자는 뒤 규칙이 건드리지 않는다
@@ -259,8 +212,9 @@ export const SECRET_RULES: Rule[] = [
   },
   {
     id: 'connection_string',
-    // scheme://user:password@host
-    re: /(:\/\/[^/\s:@]+:)([^@\s/]+)(@)/g,
+    // scheme://user:password@host. 비밀번호에 /가 그대로 들어가도 잡되, 숫자 뒤 /는 host:port/경로로 본다.
+    // 사용자명에 [ ]가 없다: IPv6 호스트([::1]:8080/경로@…)를 user:password로 보지 않게
+    re: /(:\/\/[^/\s:@[\]]+:)(?!\d+\/)([^@\s]+)(@)/g,
     apply: (ctx, _m, g) => g[0] + ctx.tag('접속비밀번호', g[1]) + g[2],
   },
   {
@@ -275,11 +229,8 @@ export const SECRET_RULES: Rule[] = [
     re: /(["']?\b(?:set-)?cookie["']?\s*:\s*)("[^"\n]*"|'[^'\n]*'|[^\r\n]+)/gi,
     apply: (ctx, _m, g) => {
       const [head, v] = g
-      const q = v[0]
-      if ((q === '"' || q === "'") && v.length >= 2 && v.endsWith(q)) {
-        return v.length > 2 ? `${head}${q}${ctx.tag('쿠키', v.slice(1, -1))}${q}` : null
-      }
-      return head + ctx.tag('쿠키', v)
+      const masked = replaceInQuotes(v, inner => ctx.tag('쿠키', inner))
+      return masked === null ? null : head + masked
     },
   },
   // ---- 키 이름으로 잡는 것 (비밀값·개인정보) ----
@@ -294,8 +245,8 @@ export const SECRET_RULES: Rule[] = [
   },
   {
     id: null,
-    // <entry key="password">...</entry>
-    re: /(key\s*=\s*"([^"]+)"[^>]*>)([^<]+)(<)/g,
+    // <entry key="password">...</entry>. 자기닫힘 태그(<add key=… />)는 값이 없으니 뒤 텍스트를 잡지 않는다
+    re: /(key\s*=\s*"([^"]+)"[^>]*(?<!\/)>)([^<]+)(<)/g,
     apply: (ctx, _m, g) => {
       const kind = ctx.keyKind(g[1])
       return kind ? g[0] + ctx.keyed(g[1], g[2], kind) + g[3] : null
@@ -313,12 +264,15 @@ export const SECRET_RULES: Rule[] = [
   {
     id: null,
     // key=value · key: value · "key": "value"
-    re: /(["']?)([A-Za-z0-9_.\-가-힣]+)\1(\s*[:=]\s*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
+    // 구분자 앞뒤 공백은 줄을 넘지 않는다: 값이 빈 YAML 키(auth:) 다음 줄의 키(enabled:)를 값으로 잡지 않게.
+    // 줄바꿈만 빼고 NBSP·전각 공백은 공백으로 본다. :=(Makefile·Go 대입)는 한 구분자로 본다
+    // 키는 글자 묶음의 처음에서만 시작한다. 묶음 중간에서 다시 시작해도 결과는 같고, 긴 base64에서 시간이 제곱으로 는다
+    re: /(?<![A-Za-z0-9_.\-가-힣])(["']?)([A-Za-z0-9_.\-가-힣]+)\1([^\S\r\n]*(?::=|[:=])[^\S\r\n]*)("[^"\n]*"|'[^'\n]*'|[^\s,;&)}\]<>"']+)/g,
     apply: (ctx, _m, g) => {
       const [q, key, sep, v] = g
       const kind = ctx.keyKind(key)
-      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v)) return null
-      const masked = maskValue(ctx, key, v, kind)
+      if (!kind || v.startsWith('[') || /^(bearer|basic)$/i.test(v) || isCodeValue(v, kind)) return null
+      const masked = replaceInQuotes(v, inner => ctx.keyed(key, inner, kind))
       return masked === null ? null : q + key + q + sep + masked
     },
   },
@@ -328,7 +282,8 @@ export const PII_RULES: Rule[] = [
   // ---- 개인정보 ----
   {
     id: 'email',
-    re: /([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
+    // 아이디는 글자 묶음의 처음에서만 시작한다 (key=value 규칙과 같은 이유)
+    re: /(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
     apply: (ctx, m, g) => `${ctx.tag('이메일', m.toLowerCase())} ${keepEnds(g[0], ctx.keep)}@${g[1]}`,
   },
   {
@@ -341,12 +296,15 @@ export const PII_RULES: Rule[] = [
   },
   {
     id: 'rrn',
-    // 13자리 epoch ms 오탐은 앞 6자리 월·일 검사로 거른다
-    re: /(?<!\d)\d{2}(\d{2})(\d{2})[- ]?[1-8]\d{6}(?!\d)/g,
+    // 13자리 epoch ms 오탐은 앞 6자리 월·일 검사로 거른다. 17·18로 시작하는 ms(2023-11~2024-04, 2027-01~06)는
+    // 월·일을 통과하므로, 구분자가 없고 1900~1919년생(106세 이상)이면 번호가 아닌 것으로 본다.
+    // 같은 구간의 2000년대생 꼴(성별 3·4·7·8)은 남는다: 체크섬은 2020년 개편 뒤 번호에 쓸 수 있는지 확인되지 않았다
+    re: /(?<!\d)(\d{2})(\d{2})(\d{2})([- ]?)([1-8])\d{6}(?!\d)/g,
     apply: (ctx, m, g) => {
-      const month = Number(g[0])
-      const day = Number(g[1])
-      return month >= 1 && month <= 12 && day >= 1 && day <= 31 ? ctx.tag('주민번호', digitsOf(m)) : null
+      const [yy, mm, dd, , gender] = g.map(Number)
+      if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null
+      if (g[3] === '' && yy < 20 && [1, 2, 5, 6].includes(gender)) return null
+      return ctx.tag('주민번호', digitsOf(m))
     },
   },
   {

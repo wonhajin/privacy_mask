@@ -1,5 +1,6 @@
 import type { PluginOptions } from 'claude-code'
-import { normKey, RULE_IDS, SCOPE_RULES, SCOPES, type RuleId, type Scope } from './rules.ts'
+import { normKey } from './keys.ts'
+import { RULE_IDS, SCOPE_RULES, SCOPES, type RuleId, type Scope } from './rules.ts'
 
 export type UserPattern = { label: string; source: string; partial: boolean }
 
@@ -23,7 +24,7 @@ export const DEFAULT_CONFIG: MaskConfig = {
 }
 
 // 음수·소수·누락은 기본값으로
-export const intOption = (v: unknown, fallback: number) =>
+const intOption = (v: unknown, fallback: number) =>
   typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : fallback
 
 export type Options = { enabled: boolean; scope: Scope; propagateMin: number; propagateMinText: number }

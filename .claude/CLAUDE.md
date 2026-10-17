@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Claude Code mod(함수 훅 플러그인). 진입점은 `hooks/register.ts`의 `register`, 마스킹 로직은 같은 파일의 `maskText`.
+Claude Code mod(함수 훅 플러그인). 진입점은 `hooks/register.ts`의 `register`, 마스킹 순서는 `hooks/mask.ts`의 `maskText`, 패턴 규칙은 `hooks/rules.ts`, 키 이름 판정은 `hooks/keys.ts`.
 
 ## 함정
 
