@@ -355,6 +355,11 @@ test('비밀값 키: 코드의 타입 표기·함수 호출·::·==는 가리지
   expect(seen).toBe(text)
 })
 
+test('키 값: 구분자 뒤 NBSP·전각 공백(복사한 문서·전각 입력)도 공백으로 본다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['password:\u00a0hunter2xyz custName:\u3000홍길동'])
+  expect(seen).toBe('password:\u00a0[password#1] custName:\u3000[custName#1]')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
