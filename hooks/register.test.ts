@@ -360,6 +360,11 @@ test('키 값: 구분자 뒤 NBSP·전각 공백(복사한 문서·전각 입력
   expect(seen).toBe('password:\u00a0[password#1] custName:\u3000[custName#1]')
 })
 
+test('비밀값 키: 복수형 토큰 키는 비밀값, 토큰 개수 키는 아니다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['api_tokens=Zq8vLr2m GITHUB_TOKENS=Hs3xKp4T num_tokens=12 tokens_used=40'])
+  expect(seen).toBe('api_tokens=[api_tokens#1] GITHUB_TOKENS=[GITHUB_TOKENS#1] num_tokens=12 tokens_used=40')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',

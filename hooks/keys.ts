@@ -6,8 +6,10 @@ export type KeyKind = 'secret' | 'pii'
 const SECRET_KEY =
   /pass(word|wd)?|pwd|pw$|secret|token|api[_-]?key|access[_-]?key|private[_-]?key|credential|auth(?!or)|jsessionid|session[_-]?id|client[_-]?id|비밀번호|비번/
 
-// pass·token을 품은 다른 단어 (테스트 결과·토큰 개수·설정 플래그). 키에서 지운 뒤 판정해 bypass_password는 그대로 잡는다
-const NOT_SECRET_WORDS = /passed|bypass|compass|passeng|passthrough|tokens|tokeniz|token_?(?:count|type|limit|len)/g
+// pass·token을 품은 다른 단어 (테스트 결과·토큰 개수·설정 플래그). 키에서 지운 뒤 판정해 bypass_password는 그대로 잡는다.
+// 복수형 tokens는 개수를 뜻할 때만 뺀다: api_tokens·refresh_tokens는 토큰 값을 담는다
+const NOT_SECRET_WORDS =
+  /passed|bypass|compass|passeng|passthrough|(?:max|num|total|input|output|prompt|completion)_?tokens|tokens_?(?:used|count|limit|len)|tokeniz|token_?(?:count|type|limit|len)/g
 
 const isSecretKey = (key: string) => {
   const k = key.toLowerCase()
