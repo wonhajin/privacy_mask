@@ -146,14 +146,14 @@ const isBizNo = (d: string) => {
 // 2014년 이전 면허증의 지역명 표기
 const LICENSE_REGIONS = '서울|부산|경기|강원|충북|충남|전북|전남|경북|경남|제주|대구|인천|광주|대전|울산'
 
-// 코드로 보이는 값: ::·==의 뒷부분, 함수 호출(getToken(), 타입 표기(password: string).
+// 코드로 보이는 값: ::·==의 뒷부분, 함수 호출(getToken(·getToken(req — 값은 ) 앞에서 끊긴다), 타입 표기(password: string).
 // 실제 비밀값일 가능성이 거의 없는 꼴만 거른다. password: hashedPassword 같은 식별자나 키와 같은 값(password=password)은
 // 비밀값과 구분할 수 없어 그대로 가린다
 const TYPE_NAMES = /^(string|number|boolean|bool|any|unknown|object|str|int|float|double|long|char|bytes)$/i
 
 // 타입 이름은 비밀값 키에만 본다: 개인정보 값은 Long 같은 실제 성일 수 있다
 const isCodeValue = (v: string, kind: KeyKind) =>
-  /^[:=]/.test(v) || /^[\w.$]+\($/.test(v) || (kind === 'secret' && TYPE_NAMES.test(v))
+  /^[:=]/.test(v) || /^[\w.$]+\(/.test(v) || (kind === 'secret' && TYPE_NAMES.test(v))
 
 // 따옴표는 남기고 안쪽만 바꾼다. 빈 따옴표("")는 null(원문 유지)
 const replaceInQuotes = (v: string, fn: (inner: string) => string) => {

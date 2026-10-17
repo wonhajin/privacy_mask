@@ -381,6 +381,12 @@ test('개인정보 키: 이름이 타입 이름과 같아도 가린다', async (
   expect(seen).toBe('custName: [custName#1]')
 })
 
+test('비밀값 키: 인자가 있는 함수 호출도 값으로 보지 않는다', async ($, on) => {
+  const text = 'const token = getToken(req);\nconst secret = vault.read(path, opts)'
+  const [seen] = await submitAll($, on, [text])
+  expect(seen).toBe(text)
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
