@@ -365,6 +365,11 @@ test('비밀값 키: 복수형 토큰 키는 비밀값, 토큰 개수 키는 아
   expect(seen).toBe('api_tokens=[api_tokens#1] GITHUB_TOKENS=[GITHUB_TOKENS#1] num_tokens=12 tokens_used=40')
 })
 
+test('비밀값 키: := 대입(Makefile·Go)은 공백·따옴표와 상관없이 값을 가린다', async ($, on) => {
+  const [seen] = await submitAll($, on, ['DB_PASSWORD:=hunter2xyz\nAPI_TOKEN := abc123xyz\npassword:="pw9876543"'])
+  expect(seen).toBe('DB_PASSWORD:=[DB_PASSWORD#1]\nAPI_TOKEN := [API_TOKEN#1]\npassword:="[password#1]"')
+})
+
 const BAND = {
   plugin: 'privacy-mask',
   component: 'AbovePrompt',
