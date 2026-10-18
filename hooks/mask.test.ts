@@ -3,6 +3,7 @@ import { DEFAULT_CONFIG } from './config.ts'
 import { isAllBypass, maskText, splitBypass } from './mask.ts'
 
 const withPatterns = (patterns: { label: string; source: string; partial: boolean }[]) => ({ ...DEFAULT_CONFIG, patterns })
+const withEmail = { ...DEFAULT_CONFIG, enabled: new Set([...DEFAULT_CONFIG.enabled, 'email']) }
 
 test('maskText: 훅을 거치지 않고 직접 호출할 수 있다', () => {
   expect(maskText('tel=010-1234-5678').text).toBe('tel=[전화번호#1] 010-••••-5678')
@@ -47,4 +48,21 @@ test('maskText: 공백 없는 긴 문자열(base64·숫자열)도 길이에 비�
   maskText(`${b64} ${'1'.repeat(40000)}`)
   // 위치마다 다시 훑으면 수십 초가 걸린다. 여유를 크게 둔다
   expect(performance.now() - start).toBeLessThan(1000)
+})
+
+test('maskText 파일 모드: ### 구간을 제외로 보지 않고 구분자도 남긴다', () => {
+  const r = maskText('###a hong.gildong@example.com###', withEmail, 'file')
+  expect(r.text).toContain('###a ')
+  expect(r.text).not.toContain('hong.gildong@example.com')
+  expect(r.text.endsWith('###')).toBe(true)
+})
+
+test('maskText 파일 모드: 기존 자리표시자는 그대로 두고 번호를 이어 매긴다', () => {
+  const r = maskText('[이메일#1] [이메일#2] kim.chulsoo@example.com', withEmail, 'file')
+  expect(r.text.startsWith('[이메일#1] [이메일#2] [이메일#3]')).toBe(true)
+  expect(r.counts['이메일']).toBe(1)
+})
+
+test('maskText 프롬프트 모드: 기본값은 기존 동작 (### 제외 구간 유지)', () => {
+  expect(maskText('###a=hong.gildong@example.com###', withEmail).text).toBe('a=hong.gildong@example.com')
 })
