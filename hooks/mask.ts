@@ -40,38 +40,13 @@ const PLACEHOLDER = /\[[^[\]\n]*#\d+\]/
 const PLACEHOLDER_ONLY = new RegExp(`^${PLACEHOLDER.source}$`)
 
 const EXISTING_PLACEHOLDER = /\[([^[\]\n#]*)#(\d+)\]/g
-// 이미 가린 자리표시자와 바로 뒤 일부 노출 꼬리(010-••••-5678). 규칙이 다시 보면 따옴표·태그 안 자리표시자를
-// 값으로 다시 가리거나, 꼬리의 남은 글자(ng@example.com)를 새 이메일로 잡는다.
-// 앞 공백도 함께 뺀다: 남겨 두면 'Cookie: '처럼 끊긴 구간에서 그 공백을 값으로 본다.
-// 꼬리는 규칙이 만드는 형식만 인정한다. 넓게 잡으면 공백 없는 JSON 로그에서 "[a#1] x•" 뒤의 다른 필드가
-// 통째로 제외돼 가려지지 않는다
-const KEEP_ENDS = `[.-]*(?:[\\w+%][.-]*){0,${PARTIAL_KEEP}}•[•.-]*(?:[\\w+%][.-]*){0,${PARTIAL_KEEP}}(?:@[\\w.-]+)?`
-const TAILS = [
-  KEEP_ENDS, // 계좌·사업자번호·이메일·사용자 정규식 partial (keepEnds)
-  '\\d{2,4}-••••-\\d{4}', // 전화번호
-  '••••-\\d{4}', // 카드번호
-  '\\d{1,3}\\.•••\\.•••\\.\\d{1,3}', // IP
-  '[0-9A-Fa-f]{2}(?:[:-]••){4}[:-][0-9A-Fa-f]{2}', // MAC
-]
-const MASKED = new RegExp(`[ \\t]*\\[[^[\\]\\n#]*#\\d+\\](?: (?:${TAILS.join('|')})(?![\\w+%•@]))?`, 'g')
-
-const splitMasked = (text: string): Segment[] => {
-  const out: Segment[] = []
-  let last = 0
-  for (const m of text.matchAll(MASKED)) {
-    if (m.index > last) out.push({ text: text.slice(last, m.index), raw: false })
-    out.push({ text: m[0], raw: true })
-    last = m.index + m[0].length
-  }
-  if (last < text.length) out.push({ text: text.slice(last), raw: false })
-  return out
-}
 
 // 번호는 프롬프트마다 1부터. 호출이 끝나면 상태를 남기지 않는다.
 // 파일 모드는 예외: 이미 가린 파일을 다시 가릴 때 새 값이 기존 [이메일#1]과 같은 번호를 받으면
 // 서로 다른 값이 같아 보이므로, 파일에 있는 라벨별 최대 번호 다음부터 매긴다.
 // 또 파일 속 ###는 사용자가 넣은 제외 표시가 아니므로 구간을 나누지 않는다 (구분자를 지우면 파일 내용이 바뀐다).
-// 대신 이미 가린 자리를 제외 구간으로 두어 다시 돌려도 결과가 같게 한다
+// 자리표시자 모양 글자로 구간을 나누지도 않는다: 값 안이나 옆에 [..#n]이 있으면 그 값이 규칙에 안 걸린다.
+// 대신 규칙이 잡은 값이 자리표시자 그 자체면 그대로 둬서(tag·keyed) 다시 돌려도 결과가 같다
 export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode: 'prompt' | 'file' = 'prompt') => {
   const counts: Record<string, number> = {}
   const ids = new Map<string, number>()
@@ -100,6 +75,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode
       counts[label] = (counts[label] ?? 0) + 1
     },
     tag: (label, norm) => {
+      if (PLACEHOLDER_ONLY.test(norm)) return norm
       ctx.count(label)
       return placeholder(label, norm)
     },
@@ -109,6 +85,8 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode
       if (!value.trim()) return value
       // JSON·설정의 빈 값 표기는 개인정보·비밀값이 아니다. 가리면 같은 리터럴이 프롬프트 곳곳에서 바뀐다
       if (/^(null|undefined|true|false|none|nil)$/i.test(value)) return value
+      // 이미 가린 자리표시자("password": "[password#1]")를 다시 가리지 않는다
+      if (PLACEHOLDER_ONLY.test(value)) return value
       const label = kind === 'secret' ? SECRET : '개인정보'
       ctx.count(label)
       const known = keyedValues.get(value)
@@ -123,7 +101,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode
     keyKind: key => keyKindOf(config, key),
   }
 
-  const segments = mode === 'file' ? splitMasked(text) : splitBypass(text)
+  const segments: Segment[] = mode === 'file' ? [{ text, raw: false }] : splitBypass(text)
   // 제외 구간은 어떤 단계에도 들어가지 않는다 (키 값 수집 포함)
   const each = (fn: (s: string) => string) => {
     for (const seg of segments) if (!seg.raw) seg.text = fn(seg.text)

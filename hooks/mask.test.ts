@@ -95,3 +95,9 @@ test('maskText 파일 모드: 자리표시자처럼 생긴 글자 뒤에 붙은 
   expect(r.text).not.toContain('victim@example.com')
   expect(r.text).not.toContain('abcdef123456')
 })
+
+test('maskText 파일 모드: 값 안이나 옆에 자리표시자 모양 글자가 있어도 값을 가린다', () => {
+  const r = maskText('password="Xy9[q#1]secretTail99"\nCookie: a=1; [req#3] SESSION=abcdef123456', withEmail, 'file')
+  expect(r.text).not.toContain('secretTail99')
+  expect(r.text).not.toContain('abcdef123456')
+})
