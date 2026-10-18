@@ -66,3 +66,25 @@ test('maskText 파일 모드: 기존 자리표시자는 그대로 두고 번호�
 test('maskText 프롬프트 모드: 기본값은 기존 동작 (### 제외 구간 유지)', () => {
   expect(maskText('###a=hong.gildong@example.com###', withEmail).text).toBe('a=hong.gildong@example.com')
 })
+
+test('maskText 파일 모드: 가린 결과를 다시 가려도 바뀌지 않는다 (자리표시자·일부 노출 꼬리 보존)', () => {
+  const config = { ...DEFAULT_CONFIG, enabled: new Set([...DEFAULT_CONFIG.enabled, 'email', 'ip', 'mac']) }
+  const src = [
+    '"password": "secretvalue1"',
+    '<password>secretvalue2</password>',
+    'Cookie: SESSION=abcdef123456',
+    'postgres://admin:dbpass123@db.example.com:5432/app',
+    'mail hong.gildong@example.com tel 010-1234-5678 ip 192.168.10.25',
+    'db.password=abc123xyz',
+    'Authorization: Bearer abcdef1234567890',
+    'api_key: abcdef123456',
+    'custName=홍길동 주문자 홍길동 tel=01012345678',
+  ].join('\n')
+  const first = maskText(src, config, 'file')
+  for (const v of ['secretvalue1', 'secretvalue2', 'SESSION=abcdef', 'dbpass123', 'abc123xyz', 'abcdef1234567890', '홍길동']) {
+    expect(first.text).not.toContain(v)
+  }
+  const second = maskText(first.text, config, 'file')
+  expect(second.text).toBe(first.text)
+  expect(second.counts).toEqual({})
+})

@@ -40,11 +40,28 @@ const PLACEHOLDER = /\[[^[\]\n]*#\d+\]/
 const PLACEHOLDER_ONLY = new RegExp(`^${PLACEHOLDER.source}$`)
 
 const EXISTING_PLACEHOLDER = /\[([^[\]\n#]*)#(\d+)\]/g
+// 이미 가린 자리표시자와 바로 뒤 일부 노출 꼬리(010-••••-5678). 규칙이 다시 보면 따옴표·태그 안 자리표시자를
+// 값으로 다시 가리거나, 꼬리의 남은 글자(ng@example.com)를 새 이메일로 잡는다.
+// 앞 공백도 함께 뺀다: 남겨 두면 'Cookie: '처럼 끊긴 구간에서 그 공백을 값으로 본다
+const MASKED = /[ \t]*\[[^[\]\n#]*#\d+\](?: \S*•\S*)?/g
+
+const splitMasked = (text: string): Segment[] => {
+  const out: Segment[] = []
+  let last = 0
+  for (const m of text.matchAll(MASKED)) {
+    if (m.index > last) out.push({ text: text.slice(last, m.index), raw: false })
+    out.push({ text: m[0], raw: true })
+    last = m.index + m[0].length
+  }
+  if (last < text.length) out.push({ text: text.slice(last), raw: false })
+  return out
+}
 
 // 번호는 프롬프트마다 1부터. 호출이 끝나면 상태를 남기지 않는다.
 // 파일 모드는 예외: 이미 가린 파일을 다시 가릴 때 새 값이 기존 [이메일#1]과 같은 번호를 받으면
 // 서로 다른 값이 같아 보이므로, 파일에 있는 라벨별 최대 번호 다음부터 매긴다.
-// 또 파일 속 ###는 사용자가 넣은 제외 표시가 아니므로 구간을 나누지 않는다 (구분자를 지우면 파일 내용이 바뀐다)
+// 또 파일 속 ###는 사용자가 넣은 제외 표시가 아니므로 구간을 나누지 않는다 (구분자를 지우면 파일 내용이 바뀐다).
+// 대신 이미 가린 자리를 제외 구간으로 두어 다시 돌려도 결과가 같게 한다
 export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode: 'prompt' | 'file' = 'prompt') => {
   const counts: Record<string, number> = {}
   const ids = new Map<string, number>()
@@ -96,7 +113,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode
     keyKind: key => keyKindOf(config, key),
   }
 
-  const segments: Segment[] = mode === 'file' ? [{ text, raw: false }] : splitBypass(text)
+  const segments = mode === 'file' ? splitMasked(text) : splitBypass(text)
   // 제외 구간은 어떤 단계에도 들어가지 않는다 (키 값 수집 포함)
   const each = (fn: (s: string) => string) => {
     for (const seg of segments) if (!seg.raw) seg.text = fn(seg.text)
