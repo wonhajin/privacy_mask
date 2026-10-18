@@ -513,3 +513,77 @@ test('Windows: HOME과 USERPROFILE이 다르면 USERPROFILE의 설정 파일을 
   await $.prompt.submit({ text: 'orderMemo=부재시연락' })
   expect(seen).toEqual(['orderMemo=[orderMemo#1]'])
 })
+
+// /mask: 홈·설정 파일(file)과 대상 파일(files)을 함께 흉내 낸다 (테스트마다 이벤트당 훅은 하나). 쓴 파일은 writes에 남는다
+// 엔진은 상대 경로를 작업 폴더 기준 절대 경로로 풀어 훅에 넘기므로 끝부분으로 찾는다
+const fakeFiles = (on: any, files: Record<string, string>, opts: { file?: string; writeFails?: boolean } = {}) => {
+  const writes: string[] = []
+  const keyOf = (path: string) => Object.keys(files).find(k => path === k || path.endsWith(`/${k}`))
+  on('env.get', (_$: any, e: any) => ({ value: e.name === 'HOME' ? HOME : undefined }))
+  on('fs.exists', (_$: any, e: any) => ({ value: opts.file !== undefined && e.path === FILE }))
+  on('fs.read', (_$: any, e: any) => {
+    if (e.path === FILE && opts.file !== undefined) return { value: opts.file }
+    const key = keyOf(e.path)
+    if (key === undefined) throw new Error('ENOENT')
+    return { value: files[key] }
+  })
+  on('fs.stat', (_$: any, e: any) => {
+    const key = keyOf(e.path)
+    if (key === undefined) throw new Error('ENOENT')
+    return { value: { kind: 'file', size: (files[key] ?? '').length, mtimeMs: 0, isLink: false } }
+  })
+  on('fs.write', (_$: any, e: any) => {
+    if (opts.writeFails) throw new Error(`EACCES ${e.text}`)
+    const key = keyOf(e.path) ?? e.path
+    writes.push(key)
+    files[key] = e.text
+    return { value: undefined }
+  })
+  return writes
+}
+
+test('/mask: 파일을 가려 덮어쓰고 건수를 알린다', { options: ALL }, async ($, on) => {
+  const files: Record<string, string> = { 'a.log': 'user hong.gildong@example.com login\n' }
+  const writes = fakeFiles(on, files)
+  const result = await $.command.run({ command: 'mask', args: '@a.log' })
+  expect(result.text).toBe('a.log: 민감정보 1건 마스킹 (이메일 1)')
+  expect(writes).toEqual(['a.log'])
+  expect(files['a.log']).not.toContain('hong.gildong@example.com')
+})
+
+test('/mask: 인자가 없으면 사용법을 알린다', async ($, on) => {
+  fakeFiles(on, {})
+  expect((await $.command.run({ command: 'mask', args: '' })).text).toBe('사용법: /mask @파일경로')
+})
+
+test('/mask: 마스킹 사용이 꺼져 있으면 파일을 건드리지 않는다', { options: { enabled: false } }, async ($, on) => {
+  const writes = fakeFiles(on, { 'a.log': 'pw=abcdef\n' })
+  expect((await $.command.run({ command: 'mask', args: '@a.log' })).text).toBe('마스킹 사용이 꺼져 있습니다.')
+  expect(writes).toEqual([])
+})
+
+test('/mask: 설정 파일이 깨졌으면 파일을 건드리지 않는다', async ($, on) => {
+  const writes = fakeFiles(on, { 'a.log': 'pw=abcdef\n' }, { file: '{' })
+  expect((await $.command.run({ command: 'mask', args: '@a.log' })).text).toBe(
+    'privacy-mask: 설정 파일이 올바른 JSON이 아닙니다',
+  )
+  expect(writes).toEqual([])
+})
+
+test('/mask: 처리 중 오류가 나면 원문 없이 실패를 알린다', async ($, on) => {
+  fakeFiles(on, { 'a.log': 'pw=abcdef\n' }, { writeFails: true })
+  const result = await $.command.run({ command: 'mask', args: '@a.log' })
+  expect(result.text).toBe('privacy-mask 오류로 파일을 처리하지 못했습니다.')
+})
+
+// 등록을 빼면 /mask @파일이 일반 메시지가 되어 원본이 첨부된다
+test('/mask: 마스킹 사용이 꺼져 있어도 명령을 등록한다', { options: { enabled: false } }, async ($, on) => {
+  const names: string[] = []
+  on('command.register', (_$: any, e: any) => {
+    names.push(e.name)
+    return { value: undefined }
+  })
+  on('session.start', (_$: any, e: any) => e)
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  expect(names).toEqual(['mask'])
+})
