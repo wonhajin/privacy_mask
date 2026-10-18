@@ -42,8 +42,18 @@ const PLACEHOLDER_ONLY = new RegExp(`^${PLACEHOLDER.source}$`)
 const EXISTING_PLACEHOLDER = /\[([^[\]\n#]*)#(\d+)\]/g
 // 이미 가린 자리표시자와 바로 뒤 일부 노출 꼬리(010-••••-5678). 규칙이 다시 보면 따옴표·태그 안 자리표시자를
 // 값으로 다시 가리거나, 꼬리의 남은 글자(ng@example.com)를 새 이메일로 잡는다.
-// 앞 공백도 함께 뺀다: 남겨 두면 'Cookie: '처럼 끊긴 구간에서 그 공백을 값으로 본다
-const MASKED = /[ \t]*\[[^[\]\n#]*#\d+\](?: \S*•\S*)?/g
+// 앞 공백도 함께 뺀다: 남겨 두면 'Cookie: '처럼 끊긴 구간에서 그 공백을 값으로 본다.
+// 꼬리는 규칙이 만드는 형식만 인정한다. 넓게 잡으면 공백 없는 JSON 로그에서 "[a#1] x•" 뒤의 다른 필드가
+// 통째로 제외돼 가려지지 않는다
+const KEEP_ENDS = `[.-]*(?:[\\w+%][.-]*){0,${PARTIAL_KEEP}}•[•.-]*(?:[\\w+%][.-]*){0,${PARTIAL_KEEP}}(?:@[\\w.-]+)?`
+const TAILS = [
+  KEEP_ENDS, // 계좌·사업자번호·이메일·사용자 정규식 partial (keepEnds)
+  '\\d{2,4}-••••-\\d{4}', // 전화번호
+  '••••-\\d{4}', // 카드번호
+  '\\d{1,3}\\.•••\\.•••\\.\\d{1,3}', // IP
+  '[0-9A-Fa-f]{2}(?:[:-]••){4}[:-][0-9A-Fa-f]{2}', // MAC
+]
+const MASKED = new RegExp(`[ \\t]*\\[[^[\\]\\n#]*#\\d+\\](?: (?:${TAILS.join('|')})(?![\\w+%•@]))?`, 'g')
 
 const splitMasked = (text: string): Segment[] => {
   const out: Segment[] = []

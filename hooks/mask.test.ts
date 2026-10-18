@@ -79,6 +79,7 @@ test('maskText 파일 모드: 가린 결과를 다시 가려도 바뀌지 않는
     'Authorization: Bearer abcdef1234567890',
     'api_key: abcdef123456',
     'custName=홍길동 주문자 홍길동 tel=01012345678',
+    'mac 00:1A:2B:3C:4D:5E card 4111-1111-1111-1111 acct 110-123-456789',
   ].join('\n')
   const first = maskText(src, config, 'file')
   for (const v of ['secretvalue1', 'secretvalue2', 'SESSION=abcdef', 'dbpass123', 'abc123xyz', 'abcdef1234567890', '홍길동']) {
@@ -87,4 +88,10 @@ test('maskText 파일 모드: 가린 결과를 다시 가려도 바뀌지 않는
   const second = maskText(first.text, config, 'file')
   expect(second.text).toBe(first.text)
   expect(second.counts).toEqual({})
+})
+
+test('maskText 파일 모드: 자리표시자처럼 생긴 글자 뒤에 붙은 값도 가린다 (공백 없는 JSON 로그)', () => {
+  const r = maskText('{"ua":"[a#1] x•","email":"victim@example.com","token":"abcdef123456"}', withEmail, 'file')
+  expect(r.text).not.toContain('victim@example.com')
+  expect(r.text).not.toContain('abcdef123456')
 })
