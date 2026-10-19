@@ -141,7 +141,7 @@ tel=010-1234-5678 db.password=abc123
 ## 설치
 
 ```bash
-claude plugin marketplace add wonhajin/privacy_mask@main
+claude plugin marketplace add wonhajin/claude-plugins
 claude plugin install privacy-mask@wonhajin
 ```
 
@@ -156,8 +156,7 @@ claude --plugin-dir /path/to/privacy_mask
 ## 개발
 
 ```bash
-claude plugin validate .claude-plugin/plugin.json   # 매니페스트·모듈 검사
-claude plugin validate .                            # 마켓플레이스 매니페스트 검사
+claude plugin validate .                            # 매니페스트·모듈 검사
 claude plugin test .                                # hooks/*.test.ts 실행
 ```
 
