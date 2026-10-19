@@ -39,11 +39,23 @@ export const joinSegments = (segments: Segment[]) => segments.map(s => s.text).j
 const PLACEHOLDER = /\[[^[\]\n]*#\d+\]/
 const PLACEHOLDER_ONLY = new RegExp(`^${PLACEHOLDER.source}$`)
 
+const EXISTING_PLACEHOLDER = /\[([^[\]\n#]*)#(\d+)\]/g
+
 // 번호는 프롬프트마다 1부터. 호출이 끝나면 상태를 남기지 않는다.
-export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
+// 파일 모드는 예외: 이미 가린 파일을 다시 가릴 때 새 값이 기존 [이메일#1]과 같은 번호를 받으면
+// 서로 다른 값이 같아 보이므로, 파일에 있는 라벨별 최대 번호 다음부터 매긴다.
+// 또 파일 속 ###는 사용자가 넣은 제외 표시가 아니므로 구간을 나누지 않는다 (구분자를 지우면 파일 내용이 바뀐다).
+// 자리표시자 모양 글자로 구간을 나누지도 않는다: 값 안이나 옆에 [..#n]이 있으면 그 값이 규칙에 안 걸린다.
+// 대신 규칙이 잡은 값이 자리표시자 그 자체면 그대로 둬서(tag·keyed) 다시 돌려도 결과가 같다
+export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG, mode: 'prompt' | 'file' = 'prompt') => {
   const counts: Record<string, number> = {}
   const ids = new Map<string, number>()
   const last: Record<string, number> = {}
+  if (mode === 'file') {
+    for (const [, label = '', n = '0'] of text.matchAll(EXISTING_PLACEHOLDER)) {
+      last[label] = Math.max(last[label] ?? 0, Number(n))
+    }
+  }
   // 키로 찾은 값 → 자리표시자와 집계 라벨 (같은 값이 여러 키에 걸리면 처음 키 이름으로 통일)
   const keyedValues = new Map<string, { ph: string; label: string }>()
 
@@ -63,6 +75,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
       counts[label] = (counts[label] ?? 0) + 1
     },
     tag: (label, norm) => {
+      if (PLACEHOLDER_ONLY.test(norm)) return norm
       ctx.count(label)
       return placeholder(label, norm)
     },
@@ -72,6 +85,8 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
       if (!value.trim()) return value
       // JSON·설정의 빈 값 표기는 개인정보·비밀값이 아니다. 가리면 같은 리터럴이 프롬프트 곳곳에서 바뀐다
       if (/^(null|undefined|true|false|none|nil)$/i.test(value)) return value
+      // 이미 가린 자리표시자("password": "[password#1]")를 다시 가리지 않는다
+      if (PLACEHOLDER_ONLY.test(value)) return value
       const label = kind === 'secret' ? SECRET : '개인정보'
       ctx.count(label)
       const known = keyedValues.get(value)
@@ -86,7 +101,7 @@ export const maskText = (text: string, config: MaskConfig = DEFAULT_CONFIG) => {
     keyKind: key => keyKindOf(config, key),
   }
 
-  const segments = splitBypass(text)
+  const segments: Segment[] = mode === 'file' ? [{ text, raw: false }] : splitBypass(text)
   // 제외 구간은 어떤 단계에도 들어가지 않는다 (키 값 수집 포함)
   const each = (fn: (s: string) => string) => {
     for (const seg of segments) if (!seg.raw) seg.text = fn(seg.text)

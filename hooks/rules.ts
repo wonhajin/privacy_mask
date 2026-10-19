@@ -282,8 +282,9 @@ export const PII_RULES: Rule[] = [
   // ---- 개인정보 ----
   {
     id: 'email',
-    // 아이디는 글자 묶음의 처음에서만 시작한다 (key=value 규칙과 같은 이유)
-    re: /(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
+    // 아이디는 글자 묶음의 처음에서만 시작한다 (key=value 규칙과 같은 이유).
+    // •도 묶음의 일부로 본다: 이미 가린 꼬리(ho••ng@example.com)의 ng@…를 새 이메일로 잡지 않게
+    re: /(?<![A-Za-z0-9._%+•-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9.-]+\.[A-Za-z]{2,})/g,
     apply: (ctx, m, g) => `${ctx.tag('이메일', m.toLowerCase())} ${keepEnds(g[0], ctx.keep)}@${g[1]}`,
   },
   {
